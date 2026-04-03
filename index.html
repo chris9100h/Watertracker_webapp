@@ -13,17 +13,10 @@
     .orange-accent { color: #f97316; }
     .progress-orange { background: linear-gradient(90deg, #f97316, #fb923c); }
     
-    /* Wichtiger Fix für Chart */
     #chart-container {
       position: relative;
       width: 100%;
-      max-width: 100%;
       height: 220px;
-      overflow: hidden;
-    }
-    #waterChart {
-      width: 100% !important;
-      height: 100% !important;
     }
   </style>
 </head>
@@ -56,7 +49,7 @@
         </div>
       </div>
 
-      <!-- Chart Container (wichtig!) -->
+      <!-- Chart -->
       <div class="bg-zinc-900 rounded-3xl p-5 mb-6 border border-orange-900">
         <p class="text-zinc-400 mb-4 text-sm">Verlauf • Soll-Linie vs. Ist</p>
         <div id="chart-container">
@@ -73,17 +66,28 @@
         </div>
       </div>
 
-      <!-- Quick Buttons -->
-      <div class="grid grid-cols-4 gap-3 mb-8">
-        <button onclick="quickAdd(150)" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">150 ml</button>
-        <button onclick="quickAdd(250)" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">250 ml</button>
-        <button onclick="quickAdd(330)" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">330 ml</button>
-        <button onclick="quickAdd(500)" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">500 ml</button>
+      <!-- Neue Quick Buttons -->
+      <div class="mb-8">
+        <p class="text-zinc-400 text-sm mb-3">Wassermengen</p>
+        <div class="grid grid-cols-4 gap-3 mb-6">
+          <button onclick="quickAdd(250)"  class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">250 ml</button>
+          <button onclick="quickAdd(500)"  class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">500 ml</button>
+          <button onclick="quickAdd(1000)" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">1000 ml</button>
+          <button onclick="quickAdd(1500)" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">1500 ml</button>
+        </div>
+
+        <p class="text-zinc-400 text-sm mb-3">Andere Getränke</p>
+        <div class="grid grid-cols-2 gap-3">
+          <button onclick="quickAdd(250, 'Kaffee')"       class="bg-amber-900 hover:bg-amber-800 border border-amber-700 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">☕ Kaffee<br><span class="text-xs text-amber-400">(250 ml)</span></button>
+          <button onclick="quickAdd(250, 'Energy Drink')" class="bg-red-900 hover:bg-red-800 border border-red-700 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">⚡ Energy Drink<br><span class="text-xs text-red-400">(250 ml)</span></button>
+          <button onclick="quickAdd(300, 'Whey Shake')"   class="bg-purple-900 hover:bg-purple-800 border border-purple-700 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">🥤 Whey Shake<br><span class="text-xs text-purple-400">(300 ml)</span></button>
+          <button onclick="quickAdd(650, '650ml Glas')"   class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">🥛 650 ml Glas<br><span class="text-xs text-zinc-400">(650 ml)</span></button>
+        </div>
       </div>
 
       <button onclick="showCustomAdd()" 
               class="w-full bg-orange-600 hover:bg-orange-500 py-4 rounded-3xl text-lg font-semibold mb-8 active:scale-95 transition">
-        + Eigener Eintrag
+        + Eigener Eintrag (ml)
       </button>
 
       <!-- Heutige Einträge -->
@@ -96,7 +100,7 @@
       </div>
     </div>
 
-    <!-- Settings Modal (unverändert) -->
+    <!-- Settings Modal -->
     <div id="settings-modal" class="hidden fixed inset-0 bg-black/80 flex items-end z-50">
       <div class="bg-zinc-900 rounded-t-3xl w-full p-6 max-h-[85vh] overflow-auto">
         <div class="flex justify-between mb-6">
@@ -107,7 +111,6 @@
           <div>
             <label class="block text-zinc-400 text-sm mb-2">Tägliches Ziel</label>
             <input id="goal-input" type="number" value="2000" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 text-3xl">
-            <p class="text-xs text-zinc-500 mt-1">Milliliter pro Tag</p>
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div>
@@ -119,8 +122,7 @@
               <input id="end-time" type="time" value="22:00" class="w-full bg-zinc-800 rounded-2xl px-5 py-4">
             </div>
           </div>
-          <button onclick="saveSettings()" 
-                  class="w-full bg-orange-600 py-4 rounded-3xl text-lg font-semibold mt-4">
+          <button onclick="saveSettings()" class="w-full bg-orange-600 py-4 rounded-3xl text-lg font-semibold mt-4">
             Speichern
           </button>
         </div>
@@ -219,15 +221,13 @@
       logs.sort((a, b) => b.ts - a.ts).forEach((entry, index) => {
         const time = new Date(entry.ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
         const div = document.createElement('div');
-        div.className = "bg-zinc-900 border border-zinc-800 hover:border-orange-800 rounded-2xl px-5 py-4 flex justify-between items-center transition";
+        div.className = "bg-zinc-900 border border-zinc-800 hover:border-orange-800 rounded-2xl px-5 py-4 flex justify-between items-center";
         div.innerHTML = `
           <div>
             <span class="text-orange-400 font-medium">${time}</span>
-            <span class="ml-4 text-lg font-semibold">+${entry.amount} ml</span>
+            <span class="ml-4 text-lg font-semibold">+${entry.amount} ml ${entry.name ? `<span class="text-xs text-zinc-500">(${entry.name})</span>` : ''}</span>
           </div>
-          <button onclick="deleteEntry(${index})" class="text-zinc-500 hover:text-red-500 text-xl w-8 h-8 flex items-center justify-center active:scale-90 transition">
-            🗑
-          </button>
+          <button onclick="deleteEntry(${index})" class="text-zinc-500 hover:text-red-500 text-xl w-8 h-8 flex items-center justify-center active:scale-90">🗑</button>
         `;
         container.appendChild(div);
       });
@@ -238,7 +238,6 @@
     let chartInstance = null;
     function renderChart() {
       const ctx = document.getElementById('waterChart');
-      
       const startHour = parseInt(settings.startTime.split(':')[0]);
       const endHour = parseInt(settings.endTime.split(':')[0]);
       const range = endHour - startHour;
@@ -253,7 +252,6 @@
       }
 
       const expectedData = labels.map((_, i) => Math.round(settings.goal * (i / (labels.length - 1))));
-
       const drunkData = labels.map(label => {
         const hour = parseInt(label.split(':')[0]);
         const cutoff = new Date();
@@ -265,69 +263,35 @@
 
       chartInstance = new Chart(ctx, {
         type: 'line',
-        data: {
-          labels: labels,
-          datasets: [
-            {
-              label: 'Soll-Linie',
-              data: expectedData,
-              borderColor: '#f97316',
-              borderDash: [5, 3],
-              tension: 0.1,
-              borderWidth: 3,
-              pointRadius: 0
-            },
-            {
-              label: 'Getrunken',
-              data: drunkData,
-              borderColor: '#fbbf24',
-              tension: 0.3,
-              borderWidth: 4,
-              pointBackgroundColor: '#fcd34d',
-              pointRadius: 3
-            }
-          ]
-        },
+        data: { labels, datasets: [
+          { label: 'Soll-Linie', data: expectedData, borderColor: '#f97316', borderDash: [5,3], borderWidth: 3, pointRadius: 0 },
+          { label: 'Getrunken', data: drunkData, borderColor: '#fbbf24', tension: 0.3, borderWidth: 4, pointRadius: 3, pointBackgroundColor: '#fcd34d' }
+        ]},
         options: {
           responsive: true,
-          maintainAspectRatio: false,   // WICHTIG!
-          plugins: {
-            legend: { 
-              display: true, 
-              position: 'top',
-              labels: { color: '#d1d5db', boxWidth: 12, padding: 15 }
-            }
-          },
+          maintainAspectRatio: false,
+          plugins: { legend: { display: true, position: 'top', labels: { color: '#d1d5db' }}},
           scales: {
-            y: { 
-              beginAtZero: true, 
-              max: Math.ceil(settings.goal * 1.2 / 500) * 500,
-              grid: { color: '#27272a' },
-              ticks: { color: '#71717a', stepSize: 500 }
-            },
-            x: { 
-              grid: { color: '#27272a' },
-              ticks: { 
-                color: '#71717a',
-                autoSkip: true,
-                maxTicksLimit: 8,        // stark begrenzt
-                maxRotation: 0,
-                minRotation: 0
-              }
-            }
+            y: { beginAtZero: true, max: Math.ceil(settings.goal * 1.2 / 500)*500, grid: { color: '#27272a' }, ticks: { color: '#71717a' }},
+            x: { grid: { color: '#27272a' }, ticks: { color: '#71717a', maxTicksLimit: 8 }}
           }
         }
       });
     }
 
-    function quickAdd(amount) {
-      logs.push({ ts: Date.now(), amount: parseInt(amount) });
+    // Neue quickAdd Funktion mit optionalem Namen
+    function quickAdd(amount, name = null) {
+      logs.push({ 
+        ts: Date.now(), 
+        amount: parseInt(amount),
+        name: name 
+      });
       saveData();
       updateUI();
     }
 
     function showCustomAdd() {
-      const amount = prompt("Wie viele ml hast du getrunken?", "250");
+      const amount = prompt("Wie viele ml hast du getrunken?", "300");
       if (amount && !isNaN(amount) && amount > 0) {
         logs.push({ ts: Date.now(), amount: parseInt(amount) });
         saveData();
