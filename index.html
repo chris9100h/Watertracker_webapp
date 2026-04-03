@@ -146,12 +146,25 @@
     function loadData() {
       const savedSettings = localStorage.getItem(STORAGE_SETTINGS);
       if (savedSettings) settings = JSON.parse(savedSettings);
-      
-      const savedLogs = localStorage.getItem(STORAGE_LOGS);
+
+      let savedLogs = localStorage.getItem(STORAGE_LOGS);
       if (savedLogs) {
         logs = JSON.parse(savedLogs);
-        const today = new Date().toDateString();
-        logs = logs.filter(l => new Date(l.ts).toDateString() === today);
+      } else {
+        logs = [];
+      }
+
+      // === WICHTIG: Automatisches Löschen alter Tage ===
+      const today = new Date().toDateString();
+      const cleanedLogs = logs.filter(log => {
+        return new Date(log.ts).toDateString() === today;
+      });
+
+      // Wenn etwas gelöscht wurde, speichern wir die bereinigte Liste
+      if (cleanedLogs.length !== logs.length) {
+        logs = cleanedLogs;
+        saveData();
+        console.log("✅ Alte Einträge vom Vortag wurden automatisch gelöscht.");
       }
     }
 
@@ -332,6 +345,7 @@
       updateUI();
     }
 
+    // Start
     window.onload = () => {
       loadData();
       updateUI();
