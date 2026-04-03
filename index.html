@@ -46,7 +46,7 @@
       <!-- Chart -->
       <div class="bg-zinc-900 rounded-3xl p-5 mb-6 border border-orange-900">
         <p class="text-zinc-400 mb-4 text-sm">Verlauf • Soll-Linie vs. Ist</p>
-        <canvas id="waterChart" height="210"></canvas>
+        <canvas id="waterChart" height="210" style="width:100%;"></canvas>
       </div>
 
       <!-- Reminder -->
@@ -224,18 +224,34 @@
     let chartInstance = null;
     function renderChart() {
       const ctx = document.getElementById('waterChart');
-      const [startH] = settings.startTime.split(':').map(Number);
-      const [endH] = settings.endTime.split(':').map(Number);
+      
+      const startHour = parseInt(settings.startTime.split(':')[0]);
+      const endHour = parseInt(settings.endTime.split(':')[0]);
+      
+      // Dynamischer Schritt: bei langen Zeiträumen nur jede 2. Stunde anzeigen
+      const hoursRange = endHour - startHour;
+      const step = hoursRange > 12 ? 2 : 1;
+      
       const labels = [];
-      for (let h = startH; h <= endH; h++) labels.push(h === 0 || h === 24 ? '00:00' : `${h}:00`);
+      for (let h = startHour; h <= endHour; h += step) {
+        labels.push(`${h.toString().padStart(2, '0')}:00`);
+      }
+      // Endzeit immer mit anzeigen
+      if (labels[labels.length - 1] !== `${endHour.toString().padStart(2, '0')}:00`) {
+        labels.push(`${endHour.toString().padStart(2, '0')}:00`);
+      }
 
-      const expectedData = labels.map((_, i) => Math.round(settings.goal * (i / (labels.length - 1))));
+      const expectedData = labels.map((_, i) => 
+        Math.round(settings.goal * (i / (labels.length - 1)))
+      );
 
-      const drunkData = labels.map((_, i) => {
-        const hour = parseInt(labels[i]);
+      const drunkData = labels.map(label => {
+        const [hour] = label.split(':').map(Number);
         const cutoff = new Date();
-        cutoff.setHours(hour, 0, 0, 0);
-        return logs.filter(l => l.ts <= cutoff.getTime()).reduce((sum, l) => sum + l.amount, 0);
+        cutoff.setHours(hour, 59, 59, 999);
+        return logs
+          .filter(l => l.ts <= cutoff.getTime())
+          .reduce((sum, l) => sum + l.amount, 0);
       });
 
       if (chartInstance) chartInstance.destroy();
@@ -249,7 +265,7 @@
               label: 'Soll-Linie',
               data: expectedData,
               borderColor: '#f97316',
-              borderDash: [6, 4],
+              borderDash: [5, 3],
               tension: 0.1,
               borderWidth: 3,
               pointRadius: 0
@@ -258,18 +274,40 @@
               label: 'Getrunken',
               data: drunkData,
               borderColor: '#fbbf24',
-              tension: 0.25,
+              tension: 0.3,
               borderWidth: 4,
-              pointBackgroundColor: '#fcd34d'
+              pointBackgroundColor: '#fcd34d',
+              pointRadius: 3
             }
           ]
         },
         options: {
           maintainAspectRatio: false,
-          plugins: { legend: { display: true, position: 'top', labels: { color: '#d1d5db', boxWidth: 12 } }},
+          responsive: true,
+          plugins: {
+            legend: { 
+              display: true, 
+              position: 'top',
+              labels: { color: '#d1d5db', boxWidth: 12, padding: 15 }
+            }
+          },
           scales: {
-            y: { beginAtZero: true, max: Math.max(settings.goal * 1.1, 3000), grid: { color: '#27272a' }, ticks: { color: '#71717a' }},
-            x: { grid: { color: '#27272a' }, ticks: { color: '#71717a' }}
+            y: { 
+              beginAtZero: true, 
+              max: Math.ceil(settings.goal * 1.15 / 100) * 100,
+              grid: { color: '#27272a' },
+              ticks: { color: '#71717a', stepSize: 500 }
+            },
+            x: { 
+              grid: { color: '#27272a' },
+              ticks: { 
+                color: '#71717a',
+                autoSkip: true,
+                maxTicksLimit: 9,
+                maxRotation: 0,
+                minRotation: 0
+              }
+            }
           }
         }
       });
@@ -319,11 +357,9 @@
       updateUI();
     }
 
-    // Init
     window.onload = () => {
       loadData();
       updateUI();
-      // Reminder alle 2 Minuten prüfen
       setInterval(checkReminder, 120000);
     };
   </script>
