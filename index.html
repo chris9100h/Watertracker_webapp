@@ -151,7 +151,13 @@
         <div>
           <p class="font-semibold text-lg">Du liegst zurück!</p>
           <p id="reminder-subtext" class="text-sm">Trink jetzt mindestens 250 ml</p>
+          <p id="reminder-next-push" class="text-xs mt-1 opacity-75"></p>
         </div>
+      </div>
+
+      <!-- On-track Info -->
+      <div id="ontrack-info" class="hidden text-center text-zinc-500 text-xs mb-4">
+        📉 Ohne weiteres Trinken fällst du um <span id="ontrack-time" class="text-orange-400 font-semibold"></span> unter die Sollkurve
       </div>
 
       <!-- Quick Buttons -->
@@ -375,6 +381,7 @@
       pushoverUser: PUSHOVER_USER,
       winstreak: 0,
       lastGoalDate: null,
+      lastPushSent: null,
       bottlesToday: 0,
       bottlesDate: null
     };
@@ -431,6 +438,7 @@
           settings.endTime      = settingsData.end_time     ?? settings.endTime;
           settings.winstreak    = settingsData.winstreak    ?? 0;
           settings.lastGoalDate = settingsData.last_goal_date ?? null;
+          settings.lastPushSent = settingsData.last_push_sent ?? null;
           // Reset bottles if it's a new day
           const todayStr = new Date().toISOString().split('T')[0];
           if (settingsData.bottles_date === todayStr) {
@@ -591,18 +599,70 @@
       return logs.reduce((sum, e) => sum + e.amount, 0);
     }
 
+    function getNextReminderTime() {
+      const COOLDOWN_MS = 30 * 60 * 1000;
+      const now = new Date();
+
+      if (!settings.lastPushSent) {
+        // No cooldown active → next 2-min tick
+        const next = new Date(now.getTime() + 2 * 60 * 1000);
+        return next.toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
+      }
+
+      const lastSent = new Date(settings.lastPushSent).getTime();
+      const cooldownEnds = lastSent + COOLDOWN_MS;
+
+      if (cooldownEnds <= now.getTime()) {
+        // Cooldown already expired → next 2-min tick
+        const next = new Date(now.getTime() + 2 * 60 * 1000);
+        return next.toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
+      }
+
+      // Cooldown still active → show when it expires
+      return new Date(cooldownEnds).toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function getFalloffTime() {
+      // At what time will getCurrentExpected() exceed drunk+120 if nothing is drunk?
+      const drunk = getTodayTotal();
+      const now   = new Date();
+      const [startHour, startMin] = settings.startTime.split(':').map(Number);
+      const [endHour,   endMin]   = settings.endTime.split(':').map(Number);
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startHour, startMin);
+      const end   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), endHour, endMin);
+      const totalTime = end - start;
+
+      // Find the time when expected = drunk + 120
+      const targetRatio = (drunk + 120) / settings.goal;
+      if (targetRatio >= 1) return null; // already at/above goal
+      const falloffMs = start.getTime() + targetRatio * totalTime;
+      const falloff   = new Date(falloffMs);
+      if (falloff <= now) return null; // already fallen off
+      return falloff.toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
+    }
+
     function checkReminder() {
       const drunk    = getTodayTotal();
       const expected = getCurrentExpected();
       const behind   = drunk < expected - 120;
       const banner   = document.getElementById('reminder-banner');
+      const ontrack  = document.getElementById('ontrack-info');
 
       if (behind) {
         const missing = Math.max(200, Math.round(expected - drunk));
         document.getElementById('reminder-subtext').textContent = `Trink jetzt ca. ${missing} ml`;
+        document.getElementById('reminder-next-push').textContent = `🔔 Nächste Erinnerung um ${getNextReminderTime()} Uhr`;
         banner.classList.remove('hidden');
+        ontrack.classList.add('hidden');
       } else {
         banner.classList.add('hidden');
+        const falloff = getFalloffTime();
+        if (falloff) {
+          document.getElementById('ontrack-time').textContent = falloff + ' Uhr';
+          ontrack.classList.remove('hidden');
+        } else {
+          ontrack.classList.add('hidden');
+        }
       }
     }
 
