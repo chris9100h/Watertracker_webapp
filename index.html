@@ -255,14 +255,14 @@
         </div>
         <!-- Custom Datepicker -->
         <div id="stats-custom-range" class="hidden mt-3 space-y-2">
-          <div class="grid grid-cols-2 gap-2">
-            <div>
+          <div class="flex gap-2">
+            <div style="flex:1;min-width:0">
               <label class="text-zinc-400 text-xs mb-1 block">Von</label>
-              <input id="stats-from" type="date" class="w-full bg-zinc-800 rounded-xl px-2 py-2 text-sm">
+              <input id="stats-from" type="date" style="width:100%;box-sizing:border-box;" class="bg-zinc-800 rounded-xl px-2 py-2 text-sm">
             </div>
-            <div>
+            <div style="flex:1;min-width:0">
               <label class="text-zinc-400 text-xs mb-1 block">Bis</label>
-              <input id="stats-to" type="date" class="w-full bg-zinc-800 rounded-xl px-2 py-2 text-sm">
+              <input id="stats-to" type="date" style="width:100%;box-sizing:border-box;" class="bg-zinc-800 rounded-xl px-2 py-2 text-sm">
             </div>
           </div>
           <button onclick="loadCustomStats()" class="w-full bg-orange-600 py-2 rounded-xl text-sm font-medium">Anzeigen</button>
