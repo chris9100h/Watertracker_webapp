@@ -841,6 +841,7 @@
         ]},
         options: {
           responsive: true, maintainAspectRatio: false,
+          animation: { onComplete: () => drawNowLine(chartInstance) },
           plugins: { legend: { display: true, position: 'top', labels: { color: '#d1d5db' }}},
           scales: {
             y: { beginAtZero: true, max: Math.ceil(settings.goal * 1.2 / 500)*500, grid: { color: '#27272a' }, ticks: { color: '#71717a' }},
