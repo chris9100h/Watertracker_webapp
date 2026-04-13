@@ -173,29 +173,27 @@
       </div>
 
       <!-- Mini-Statistiken -->
-      <div class="grid grid-cols-1 gap-3 mb-6">
+      <div class="mb-6">
         <div class="bg-zinc-900 rounded-2xl p-4 border border-orange-900">
           <p class="text-zinc-400 text-xs mb-3">☕ Andere Getränke heute</p>
           <div id="other-drinks-breakdown" class="text-sm text-zinc-300">
             <span class="text-zinc-600 italic">Noch nichts eingetragen</span>
           </div>
         </div>
-        <div class="bg-zinc-900 rounded-2xl p-4 border border-orange-900 flex items-center gap-3">
-          <span class="text-2xl">✏️</span>
-          <div>
-            <p class="text-zinc-400 text-xs">Eigene Einträge</p>
-            <p id="custom-total-ml" class="text-xl font-bold">0 <span class="text-sm text-zinc-500">ml</span></p>
-          </div>
-        </div>
       </div>
 
       <!-- Heutige Einträge -->
-      <div>
-        <h2 class="text-zinc-400 text-sm mb-3 flex justify-between items-center">
-          <span>Heutige Einträge</span>
-          <span id="total-entries" class="text-xs bg-zinc-800 px-3 py-1 rounded-2xl"></span>
-        </h2>
-        <div id="log-list" class="space-y-3"></div>
+      <div class="bg-zinc-900 rounded-2xl border border-orange-900 mb-6 overflow-hidden">
+        <button onclick="toggleLogList()" class="w-full flex justify-between items-center px-4 py-3">
+          <div class="flex items-center gap-2">
+            <span class="text-zinc-400 text-sm">Heutige Einträge</span>
+            <span id="total-entries" class="text-xs bg-zinc-800 px-3 py-1 rounded-2xl"></span>
+          </div>
+          <span id="log-chevron" class="text-zinc-500 transition-transform duration-200">▼</span>
+        </button>
+        <div id="log-list-wrapper" class="hidden px-4 pb-4">
+          <div id="log-list" class="space-y-3"></div>
+        </div>
       </div>
     </div>
 
@@ -725,16 +723,24 @@
               <span class="text-orange-400 font-bold">${d.count}×</span>
             </div>`;
           }).join('');
-        if (totalMilchMl > 0) {
-          html += `<div class="border-t border-zinc-700 mt-1 pt-2 flex justify-between items-center py-1">
-            <span>🥛 Milch</span>
-            <span class="text-orange-400 font-bold">${totalMilchMl} ml</span>
-          </div>`;
+        if (totalMilchMl > 0 || customTotal > 0) {
+          html += `<div class="border-t border-zinc-700 mt-1 pt-2">`;
+          if (totalMilchMl > 0) {
+            html += `<div class="flex justify-between items-center py-1">
+              <span>🥛 Milch</span>
+              <span class="text-orange-400 font-bold">${totalMilchMl} ml</span>
+            </div>`;
+          }
+          if (customTotal > 0) {
+            html += `<div class="flex justify-between items-center py-1">
+              <span>✏️ Eigene Einträge</span>
+              <span class="text-orange-400 font-bold">${customTotal} ml</span>
+            </div>`;
+          }
+          html += `</div>`;
         }
         breakdownEl.innerHTML = html;
       }
-
-      document.getElementById('custom-total-ml').innerHTML = `${customTotal} <span class="text-sm text-zinc-500">ml</span>`;
 
       checkWinstreak();
       renderLogList();
@@ -994,6 +1000,15 @@
       const coffeeName = names[selectedCoffeeSize] || `Kaffee ${selectedCoffeeSize}ml`;
       const label = milchMl > 0 ? `${coffeeName} (+${milchMl}ml Milch)` : coffeeName;
       askConfirm(total, label, 'other');
+    }
+
+    // ─── Log List Toggle ──────────────────────────────────────────────────────────
+    function toggleLogList() {
+      const wrapper  = document.getElementById('log-list-wrapper');
+      const chevron  = document.getElementById('log-chevron');
+      const expanded = !wrapper.classList.contains('hidden');
+      wrapper.classList.toggle('hidden', expanded);
+      chevron.style.transform = expanded ? '' : 'rotate(180deg)';
     }
 
     // ─── Bestätigungs-Modal ───────────────────────────────────────────────────────
