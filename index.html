@@ -688,9 +688,9 @@
         '500ml Glas': 500, '650ml Glas': 650, 'Barbarian Jug': 1700
       };
       otherLogs.forEach(e => {
-        const milchMatch = e.name ? e.name.match(/\(\+(\d+)ml Milch\)/) : null;
+        const milchMatch = e.name ? e.name.match(/(?:\(\+|\+ |· )(\d+)ml Milch/) : null;
         if (milchMatch) totalMilchMl += parseInt(milchMatch[1]);
-        const baseName = e.name ? e.name.replace(/ \(\+\d+ml Milch\)/, '') : 'Unbekannt';
+        const baseName = e.name ? e.name.replace(/ \(\+\d+ml Milch\)/, '').replace(/ · \d+ml Milch/, '').replace(/ \+ \d+ml Milch/, '') : 'Unbekannt';
         if (!breakdown[baseName]) breakdown[baseName] = { count: 0, ml: drinkMlMap[baseName] || 0 };
         breakdown[baseName].count++;
       });
@@ -991,7 +991,7 @@
       const total = selectedCoffeeSize + milchMl;
       const names = {40:'Espresso',80:'Double Espresso',100:'Schwarz',120:'Barista',150:'Gran Lungo',200:'TGW',230:'Mug'};
       const coffeeName = names[selectedCoffeeSize] || `Kaffee ${selectedCoffeeSize}ml`;
-      const label = milchMl > 0 ? `${coffeeName} (+${milchMl}ml Milch)` : coffeeName;
+      const label = milchMl > 0 ? `${coffeeName} + ${milchMl}ml Milch` : coffeeName;
       askConfirm(total, label, 'other');
     }
 
@@ -1211,9 +1211,9 @@
       const drinkCounts = {};
       let statsMilchMl = 0;
       allLogs.filter(l => l.category === 'other').forEach(l => {
-        const milchMatch = l.name ? l.name.match(/\(\+(\d+)ml Milch\)/) : null;
+        const milchMatch = l.name ? l.name.match(/(?:\(\+|\+ |· )(\d+)ml Milch/) : null;
         if (milchMatch) statsMilchMl += parseInt(milchMatch[1]);
-        const base = (l.name || 'Unbekannt').replace(/ \(\+\d+ml Milch\)/, '').replace(/ \(.*\)/, '');
+        const base = (l.name || 'Unbekannt').replace(/ \(\+\d+ml Milch\)/, '').replace(/ · \d+ml Milch/, '').replace(/ \+ \d+ml Milch/, '');
         const key = ['Espresso','Double Espresso','Schwarz','Barista','Gran Lungo','TGW','Mug'].includes(base) ? 'Kaffee' : base;
         drinkCounts[key] = (drinkCounts[key] || 0) + 1;
       });
