@@ -7,28 +7,84 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
     body { font-family: 'Inter', system-ui, sans-serif; }
     .orange-accent { color: #f97316; }
     .progress-orange { background: linear-gradient(90deg, #f97316, #fb923c); }
-    
-    #chart-container {
-      position: relative;
-      width: 100%;
-      height: 220px;
+    #chart-container { position: relative; width: 100%; height: 220px; }
+
+    /* Notification toast */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: #18181b;
+      border: 1px solid #f97316;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 16px;
+      font-size: 14px;
+      z-index: 9999;
+      transition: transform 0.3s ease;
+      white-space: nowrap;
+      max-width: 90vw;
     }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* Config badge */
+    .config-badge {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+    .config-badge.ok { background: #22c55e; }
+    .config-badge.missing { background: #ef4444; }
+
+    /* Milk modal */
+    #milk-modal {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    #milk-modal.open { display: flex; }
+    .milk-option {
+      background: #27272a;
+      border: 2px solid #3f3f46;
+      border-radius: 16px;
+      padding: 14px 0;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: center;
+    }
+    .milk-option:hover { border-color: #f97316; background: #3f3f46; }
+    .milk-option.no { border-color: #52525b; color: #a1a1aa; }
+    .milk-option.no:hover { border-color: #ef4444; color: #fca5a5; background: #27272a; }
   </style>
 </head>
 <body class="bg-zinc-950 text-white min-h-screen">
   <div class="max-w-md mx-auto bg-zinc-950 min-h-screen">
+
     <!-- Header -->
     <div class="bg-orange-600 p-4 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <div class="w-9 h-9 bg-white rounded-2xl flex items-center justify-center text-orange-600 text-2xl">💧</div>
         <h1 class="text-2xl font-semibold tracking-tight">Wasser Tracker</h1>
       </div>
-      <button onclick="toggleSettings()" class="text-3xl">⚙️</button>
+      <div class="flex items-center gap-2">
+        <span id="sync-indicator" class="text-xs px-2 py-1 rounded-full bg-orange-700 hidden">⏳ Sync</span>
+        <button onclick="toggleSettings()" class="text-3xl">⚙️</button>
+      </div>
     </div>
 
     <div class="p-5">
@@ -46,6 +102,23 @@
         </div>
         <div class="h-4 bg-zinc-800 rounded-2xl overflow-hidden">
           <div id="progress-bar" class="h-full progress-orange rounded-2xl transition-all duration-500" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- Mini-Statistiken -->
+      <div class="grid grid-cols-1 gap-3 mb-6">
+        <div class="bg-zinc-900 rounded-2xl p-4 border border-orange-900">
+          <p class="text-zinc-400 text-xs mb-3">☕ Andere Getränke heute</p>
+          <div id="other-drinks-breakdown" class="text-sm text-zinc-300">
+            <span class="text-zinc-600 italic">Noch nichts eingetragen</span>
+          </div>
+        </div>
+        <div class="bg-zinc-900 rounded-2xl p-4 border border-orange-900 flex items-center gap-3">
+          <span class="text-2xl">✏️</span>
+          <div>
+            <p class="text-zinc-400 text-xs">Eigene Einträge</p>
+            <p id="custom-total-ml" class="text-xl font-bold">0 <span class="text-sm text-zinc-500">ml</span></p>
+          </div>
         </div>
       </div>
 
@@ -78,14 +151,16 @@
 
         <p class="text-zinc-400 text-sm mb-3">Andere Getränke</p>
         <div class="grid grid-cols-2 gap-3">
-          <button onclick="quickAdd(250, 'Kaffee')"       class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">☕ Kaffee<br><span class="text-xs text-zinc-500">(250 ml)</span></button>
-          <button onclick="quickAdd(250, 'Energy Drink')" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">⚡ Energy Drink<br><span class="text-xs text-zinc-500">(250 ml)</span></button>
-          <button onclick="quickAdd(300, 'Whey Shake')"   class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🥤 Whey Shake<br><span class="text-xs text-zinc-500">(300 ml)</span></button>
-          <button onclick="quickAdd(650, '650ml Glas')"   class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🥛 650 ml Glas<br><span class="text-xs text-zinc-500">(650 ml)</span></button>
+          <button onclick="addKaffee()"       class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">☕ Kaffee<br><span class="text-xs text-zinc-500">(230+ ml)</span></button>
+          <button onclick="quickAdd(250, 'Energy Drink', 'other')" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">⚡ Energy Drink<br><span class="text-xs text-zinc-500">(250 ml)</span></button>
+          <button onclick="quickAdd(300, 'Whey Shake', 'other')"   class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🥤 Whey Shake<br><span class="text-xs text-zinc-500">(300 ml)</span></button>
+          <button onclick="quickAdd(500, '500ml Glas', 'other')"   class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🥛 500 ml Glas<br><span class="text-xs text-zinc-500">(500 ml)</span></button>
+          <button onclick="quickAdd(650, '650ml Glas', 'other')"   class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🥛 650 ml Glas<br><span class="text-xs text-zinc-500">(650 ml)</span></button>
+          <button onclick="quickAdd(1700, 'Barbarian Jug', 'other')" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🏺 Barbarian Jug<br><span class="text-xs text-zinc-500">(1700 ml)</span></button>
         </div>
       </div>
 
-      <button onclick="showCustomAdd()" 
+      <button onclick="showCustomAdd()"
               class="w-full bg-orange-600 hover:bg-orange-500 py-4 rounded-3xl text-lg font-semibold mb-8 active:scale-95 transition">
         + Eigener Eintrag (ml)
       </button>
@@ -102,14 +177,16 @@
 
     <!-- Settings Modal -->
     <div id="settings-modal" class="hidden fixed inset-0 bg-black/80 flex items-end z-50">
-      <div class="bg-zinc-900 rounded-t-3xl w-full p-6 max-h-[85vh] overflow-auto">
+      <div class="bg-zinc-900 rounded-t-3xl w-full p-6 max-h-[90vh] overflow-auto">
         <div class="flex justify-between mb-6">
           <h2 class="text-2xl font-semibold">Einstellungen</h2>
           <button onclick="toggleSettings()" class="text-4xl leading-none text-zinc-400">×</button>
         </div>
         <div class="space-y-6">
+
+          <!-- Tracker-Einstellungen -->
           <div>
-            <label class="block text-zinc-400 text-sm mb-2">Tägliches Ziel</label>
+            <label class="block text-zinc-400 text-sm mb-2">Tägliches Ziel (ml)</label>
             <input id="goal-input" type="number" value="2000" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 text-3xl">
           </div>
           <div class="grid grid-cols-2 gap-4">
@@ -122,99 +199,334 @@
               <input id="end-time" type="time" value="22:00" class="w-full bg-zinc-800 rounded-2xl px-5 py-4">
             </div>
           </div>
+
+          <!-- Pushover Test -->
+          <div class="border-t border-zinc-700 pt-4">
+            <button onclick="testPushover()"
+                    class="w-full bg-zinc-700 hover:bg-zinc-600 py-3 rounded-2xl text-sm font-medium transition">
+              🔔 Test-Benachrichtigung senden
+            </button>
+          </div>
+
           <button onclick="saveSettings()" class="w-full bg-orange-600 py-4 rounded-3xl text-lg font-semibold mt-4">
             Speichern
           </button>
         </div>
       </div>
     </div>
+
+  </div>
+
+  <!-- Toast -->
+  <div id="toast"></div>
+
+  <!-- Milch Modal -->
+  <div id="milk-modal">
+    <div class="bg-zinc-900 rounded-3xl p-6 w-full max-w-sm border border-orange-800">
+      <h3 class="text-xl font-semibold mb-1">☕ Kaffee mit Milch?</h3>
+      <p class="text-zinc-400 text-sm mb-5">Basis: 230 ml · Wie viel Milch?</p>
+      <div class="grid grid-cols-3 gap-3 mb-3">
+        <button class="milk-option" onclick="confirmKaffee(20)">20 ml</button>
+        <button class="milk-option" onclick="confirmKaffee(40)">40 ml</button>
+        <button class="milk-option" onclick="confirmKaffee(60)">60 ml</button>
+        <button class="milk-option" onclick="confirmKaffee(80)">80 ml</button>
+        <button class="milk-option" onclick="confirmKaffee(100)">100 ml</button>
+        <button class="milk-option no" onclick="confirmKaffee(0)">Keine Milch</button>
+      </div>
+    </div>
   </div>
 
   <script>
+    // ─── Telegram ───────────────────────────────────────────────────────────────
     if (window.Telegram?.WebApp) {
       Telegram.WebApp.ready();
       Telegram.WebApp.expand();
       Telegram.WebApp.setHeaderColor('#ea580c');
     }
 
-    let settings = { goal: 2000, startTime: "08:00", endTime: "22:00" };
+    // ─── State ──────────────────────────────────────────────────────────────────
+    const SUPABASE_URL   = "https://ebbuvdzgstrhrcsbrlez.supabase.co";
+    const SUPABASE_KEY   = "sb_publishable_y6zCr61GpGd4GXk3zh7BJA_9RWUp7ES";
+    const PUSHOVER_TOKEN = "a4zqbn2yeu65m5vc9vxs25ks1j4j7z";
+    const PUSHOVER_USER  = "uxrg8gh43b1tpw31pq4r4i4ebqrhjt";
+
+    let settings = {
+      goal: 2000,
+      startTime: "08:00",
+      endTime: "22:00",
+      supabaseUrl: SUPABASE_URL,
+      supabaseKey: SUPABASE_KEY,
+      pushoverToken: PUSHOVER_TOKEN,
+      pushoverUser: PUSHOVER_USER
+    };
     let logs = [];
+    let supabaseClient = null;
+    let lastPushoverSent = 0; // timestamp of last pushover notification
+    const PUSHOVER_COOLDOWN = 30 * 60 * 1000; // 30 minutes
 
     const STORAGE_SETTINGS = 'waterTrackerSettings';
-    const STORAGE_LOGS = 'waterTrackerLogs';
+    const STORAGE_LOGS     = 'waterTrackerLogs';
 
-    function loadData() {
-      const savedSettings = localStorage.getItem(STORAGE_SETTINGS);
-      if (savedSettings) settings = JSON.parse(savedSettings);
+    // ─── Toast ──────────────────────────────────────────────────────────────────
+    function showToast(msg, duration = 3000) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), duration);
+    }
 
-      let savedLogs = localStorage.getItem(STORAGE_LOGS);
-      if (savedLogs) {
-        logs = JSON.parse(savedLogs);
-      } else {
-        logs = [];
+    // ─── Supabase ────────────────────────────────────────────────────────────────
+    function initSupabase() {
+      if (!settings.supabaseUrl || !settings.supabaseKey) {
+        supabaseClient = null;
+        return;
       }
-
-      // === WICHTIG: Automatisches Löschen alter Tage ===
-      const today = new Date().toDateString();
-      const cleanedLogs = logs.filter(log => {
-        return new Date(log.ts).toDateString() === today;
-      });
-
-      // Wenn etwas gelöscht wurde, speichern wir die bereinigte Liste
-      if (cleanedLogs.length !== logs.length) {
-        logs = cleanedLogs;
-        saveData();
-        console.log("✅ Alte Einträge vom Vortag wurden automatisch gelöscht.");
+      try {
+        supabaseClient = supabase.createClient(settings.supabaseUrl, settings.supabaseKey);
+      } catch(e) {
+        console.error('Supabase init failed:', e);
+        supabaseClient = null;
       }
     }
 
-    function saveData() {
+    function showSync(on) {
+      document.getElementById('sync-indicator').classList.toggle('hidden', !on);
+    }
+
+    async function loadFromSupabase() {
+      if (!supabaseClient) return false;
+      try {
+        showSync(true);
+        const today = new Date().toISOString().split('T')[0];
+
+        // Load settings
+        const { data: settingsData } = await supabaseClient
+          .from('water_settings')
+          .select('*')
+          .eq('id', 1)
+          .single();
+
+        if (settingsData) {
+          settings.goal      = settingsData.goal      ?? settings.goal;
+          settings.startTime = settingsData.start_time ?? settings.startTime;
+          settings.endTime   = settingsData.end_time   ?? settings.endTime;
+        }
+
+        // Load today's logs
+        const { data: logsData } = await supabaseClient
+          .from('water_logs')
+          .select('*')
+          .eq('date', today)
+          .order('ts', { ascending: true });
+
+        if (logsData) {
+          logs = logsData.map(row => ({
+            id: row.id,
+            ts: new Date(row.ts).getTime(),
+            amount: row.amount,
+            name: row.name
+          }));
+        }
+
+        showSync(false);
+        return true;
+      } catch(e) {
+        console.error('Supabase load error:', e);
+        showSync(false);
+        return false;
+      }
+    }
+
+    async function saveLogToSupabase(entry) {
+      if (!supabaseClient) return null;
+      try {
+        showSync(true);
+        const today = new Date().toISOString().split('T')[0];
+        const { data, error } = await supabaseClient
+          .from('water_logs')
+          .insert({
+            ts:     new Date(entry.ts).toISOString(),
+            amount: entry.amount,
+            name:   entry.name || null,
+            date:   today
+          })
+          .select()
+          .single();
+
+        showSync(false);
+        if (error) throw error;
+        return data?.id ?? null;
+      } catch(e) {
+        console.error('Supabase save log error:', e);
+        showSync(false);
+        return null;
+      }
+    }
+
+    async function deleteLogFromSupabase(id) {
+      if (!supabaseClient || !id) return;
+      try {
+        await supabaseClient.from('water_logs').delete().eq('id', id);
+      } catch(e) {
+        console.error('Supabase delete error:', e);
+      }
+    }
+
+    async function saveSettingsToSupabase() {
+      if (!supabaseClient) return;
+      try {
+        await supabaseClient.from('water_settings').upsert({
+          id:         1,
+          goal:       settings.goal,
+          start_time: settings.startTime,
+          end_time:   settings.endTime
+        });
+      } catch(e) {
+        console.error('Supabase save settings error:', e);
+      }
+    }
+
+    // ─── localStorage fallback ────────────────────────────────────────────────
+    function loadFromLocal() {
+      const savedSettings = localStorage.getItem(STORAGE_SETTINGS);
+      if (savedSettings) {
+        const parsed = JSON.parse(savedSettings);
+        settings = { ...settings, ...parsed };
+      }
+
+      const savedLogs = localStorage.getItem(STORAGE_LOGS);
+      if (savedLogs) {
+        const today = new Date().toDateString();
+        logs = JSON.parse(savedLogs).filter(log => new Date(log.ts).toDateString() === today);
+      }
+    }
+
+    function saveToLocal() {
       localStorage.setItem(STORAGE_SETTINGS, JSON.stringify(settings));
       localStorage.setItem(STORAGE_LOGS, JSON.stringify(logs));
     }
 
-    function getTodayTotal() {
-      return logs.reduce((sum, entry) => sum + entry.amount, 0);
+    // ─── Pushover ────────────────────────────────────────────────────────────────
+    async function sendPushover(message, title = "💧 Wasser Tracker") {
+      if (!settings.pushoverToken || !settings.pushoverUser) return false;
+      try {
+        // Pushover doesn't allow direct browser requests due to CORS,
+        // so we use a CORS proxy or the Pushover endpoint with no-cors mode.
+        // We use a FormData approach which works better cross-origin.
+        const body = new FormData();
+        body.append('token',   settings.pushoverToken);
+        body.append('user',    settings.pushoverUser);
+        body.append('message', message);
+        body.append('title',   title);
+        body.append('sound',   'droplet');
+
+        await fetch('https://api.pushover.net/1/messages.json', {
+          method: 'POST',
+          body,
+          mode: 'no-cors' // Pushover responds but browser blocks reading – that's fine, send still works
+        });
+        return true;
+      } catch(e) {
+        console.error('Pushover error:', e);
+        return false;
+      }
     }
 
+    async function testPushover() {
+      if (!settings.pushoverToken || !settings.pushoverUser) {
+        showToast('❌ Bitte zuerst Token & User Key eintragen');
+        return;
+      }
+      await sendPushover('Test erfolgreich! 💧 Dein Wasser Tracker ist verbunden.', '💧 Wasser Tracker Test');
+      showToast('🔔 Test-Push abgeschickt – check dein Handy!');
+    }
+
+    // ─── Reminder + Pushover check ────────────────────────────────────────────
     function getCurrentExpected() {
       const now = new Date();
       const [startHour, startMin] = settings.startTime.split(':').map(Number);
-      const [endHour, endMin] = settings.endTime.split(':').map(Number);
-
+      const [endHour, endMin]     = settings.endTime.split(':').map(Number);
       const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startHour, startMin);
-      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), endHour, endMin);
-
+      const end   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), endHour, endMin);
       if (now < start) return 0;
-      if (now > end) return settings.goal;
-
-      const totalTime = end - start;
-      const elapsed = now - start;
-      return Math.round(settings.goal * Math.min(elapsed / totalTime, 1));
+      if (now > end)   return settings.goal;
+      return Math.round(settings.goal * ((now - start) / (end - start)));
     }
 
-    function checkReminder() {
-      const drunk = getTodayTotal();
-      const expected = getCurrentExpected();
-      const banner = document.getElementById('reminder-banner');
+    function getTodayTotal() {
+      return logs.reduce((sum, e) => sum + e.amount, 0);
+    }
 
-      if (drunk < expected - 120) {
+    async function checkReminder() {
+      const drunk    = getTodayTotal();
+      const expected = getCurrentExpected();
+      const behind   = drunk < expected - 120;
+      const banner   = document.getElementById('reminder-banner');
+
+      if (behind) {
         const missing = Math.max(200, Math.round(expected - drunk));
         document.getElementById('reminder-subtext').textContent = `Trink jetzt ca. ${missing} ml`;
         banner.classList.remove('hidden');
+
+        // Pushover – max 1x per 30 min
+        const now = Date.now();
+        if (now - lastPushoverSent > PUSHOVER_COOLDOWN) {
+          const sent = await sendPushover(
+            `Du liegst ${missing} ml hinter deinem Ziel! Trink jetzt. 💧 (${drunk} / ${expected} ml)`,
+            '💧 Wasser-Erinnerung'
+          );
+          if (sent) {
+            lastPushoverSent = now;
+            console.log('Pushover sent at', new Date().toLocaleTimeString());
+          }
+        }
       } else {
         banner.classList.add('hidden');
       }
     }
 
+    // ─── UI ──────────────────────────────────────────────────────────────────────
     function updateUI() {
-      const total = getTodayTotal();
+      const total   = getTodayTotal();
       const percent = Math.min(Math.round((total / settings.goal) * 100), 100);
 
       document.getElementById('drunk-amount').innerHTML = `${total} <span class="text-3xl text-zinc-500">ml</span>`;
-      document.getElementById('goal-text').textContent = `von ${settings.goal} ml`;
+      document.getElementById('goal-text').textContent  = `von ${settings.goal} ml`;
       document.getElementById('progress-percent').textContent = `${percent}%`;
-      document.getElementById('progress-bar').style.width = `${percent}%`;
+      document.getElementById('progress-bar').style.width     = `${percent}%`;
+
+      // Mini-Statistiken
+      const otherLogs = logs.filter(e => e.category === 'other');
+      const customTotal = logs.filter(e => e.category === 'custom').reduce((s, e) => s + e.amount, 0);
+
+      // Breakdown: group by base name (strip milch suffix for grouping key)
+      const breakdown = {};
+      otherLogs.forEach(e => {
+        // Use base name without "(+Xml Milch)" for grouping display
+        const baseName = e.name ? e.name.replace(/ \(\+\d+ml Milch\)/, '') : 'Unbekannt';
+        if (!breakdown[baseName]) breakdown[baseName] = { count: 0 };
+        breakdown[baseName].count++;
+      });
+
+      const drinkEmojis = {
+        'Kaffee': '☕', 'Energy Drink': '⚡', 'Whey Shake': '🥤',
+        '500ml Glas': '🥛', '650ml Glas': '🥛', 'Barbarian Jug': '🏺'
+      };
+
+      const breakdownEl = document.getElementById('other-drinks-breakdown');
+      if (Object.keys(breakdown).length === 0) {
+        breakdownEl.innerHTML = '<span class="text-zinc-600 italic">Noch nichts eingetragen</span>';
+      } else {
+        breakdownEl.innerHTML = Object.entries(breakdown)
+          .map(([name, d]) => {
+            const emoji = drinkEmojis[name] || '🥤';
+            return `<span class="inline-flex items-center gap-1.5 bg-zinc-800 rounded-xl px-3 py-1.5 mr-2 mb-2 font-medium">
+              ${emoji} ${name} <span class="text-orange-400 font-bold ml-1">${d.count}×</span>
+            </span>`;
+          }).join('');
+      }
+
+      document.getElementById('custom-total-ml').innerHTML = `${customTotal} <span class="text-sm text-zinc-500">ml</span>`;
 
       renderLogList();
       renderChart();
@@ -231,9 +543,9 @@
         return;
       }
 
-      logs.sort((a, b) => b.ts - a.ts).forEach((entry, index) => {
+      [...logs].sort((a, b) => b.ts - a.ts).forEach((entry, index) => {
         const time = new Date(entry.ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-        const div = document.createElement('div');
+        const div  = document.createElement('div');
         div.className = "bg-zinc-900 border border-zinc-800 hover:border-orange-800 rounded-2xl px-5 py-4 flex justify-between items-center";
         div.innerHTML = `
           <div>
@@ -250,45 +562,34 @@
 
     let chartInstance = null;
     function renderChart() {
-      const ctx = document.getElementById('waterChart');
+      const ctx       = document.getElementById('waterChart');
       const startHour = parseInt(settings.startTime.split(':')[0]);
-      const endHour = parseInt(settings.endTime.split(':')[0]);
-      const range = endHour - startHour;
-      const step = range > 10 ? 2 : 1;
+      const endHour   = parseInt(settings.endTime.split(':')[0]);
+      const range     = endHour - startHour;
+      const step      = range > 10 ? 2 : 1;
 
       const labels = [];
-      for (let h = startHour; h <= endHour; h += step) {
-        labels.push(`${h.toString().padStart(2, '0')}:00`);
-      }
-      if (labels[labels.length-1] !== `${endHour.toString().padStart(2, '0')}:00`) {
-        labels.push(`${endHour.toString().padStart(2, '0')}:00`);
-      }
+      for (let h = startHour; h <= endHour; h += step) labels.push(`${String(h).padStart(2,'0')}:00`);
+      if (labels[labels.length-1] !== `${String(endHour).padStart(2,'0')}:00`)
+        labels.push(`${String(endHour).padStart(2,'0')}:00`);
 
       const expectedData = labels.map((_, i) => Math.round(settings.goal * (i / (labels.length - 1))));
-      const drunkData = labels.map(label => {
-        const hour = parseInt(label.split(':')[0]);
-        const cutoff = new Date();
-        cutoff.setHours(hour, 59, 59, 999);
+      const drunkData    = labels.map(label => {
+        const hour   = parseInt(label.split(':')[0]);
+        const cutoff = new Date(); cutoff.setHours(hour, 59, 59, 999);
         return logs.filter(l => l.ts <= cutoff.getTime()).reduce((sum, l) => sum + l.amount, 0);
       });
 
       if (chartInstance) chartInstance.destroy();
-
       chartInstance = new Chart(ctx, {
         type: 'line',
-        data: { 
-          labels, 
-          datasets: [
-            { label: 'Soll-Linie', data: expectedData, borderColor: '#f97316', borderDash: [5,3], borderWidth: 3, pointRadius: 0 },
-            { label: 'Getrunken', data: drunkData, borderColor: '#fbbf24', tension: 0.3, borderWidth: 4, pointRadius: 3, pointBackgroundColor: '#fcd34d' }
-          ]
-        },
+        data: { labels, datasets: [
+          { label: 'Soll-Linie', data: expectedData, borderColor: '#f97316', borderDash: [5,3], borderWidth: 3, pointRadius: 0 },
+          { label: 'Getrunken',  data: drunkData,    borderColor: '#fbbf24', tension: 0.3, borderWidth: 4, pointRadius: 3, pointBackgroundColor: '#fcd34d' }
+        ]},
         options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { 
-            legend: { display: true, position: 'top', labels: { color: '#d1d5db' }} 
-          },
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: true, position: 'top', labels: { color: '#d1d5db' }}},
           scales: {
             y: { beginAtZero: true, max: Math.ceil(settings.goal * 1.2 / 500)*500, grid: { color: '#27272a' }, ticks: { color: '#71717a' }},
             x: { grid: { color: '#27272a' }, ticks: { color: '#71717a', maxTicksLimit: 8 }}
@@ -297,59 +598,95 @@
       });
     }
 
-    function quickAdd(amount, name = null) {
-      logs.push({ 
-        ts: Date.now(), 
-        amount: parseInt(amount),
-        name: name 
-      });
-      saveData();
+    // ─── Kaffee / Milch Modal ────────────────────────────────────────────────────
+    function addKaffee() {
+      document.getElementById('milk-modal').classList.add('open');
+    }
+
+    function confirmKaffee(milchMl) {
+      document.getElementById('milk-modal').classList.remove('open');
+      const total = 230 + milchMl;
+      const label = milchMl > 0 ? `Kaffee (+${milchMl}ml Milch)` : 'Kaffee';
+      quickAdd(total, label, 'other');
+    }
+
+    // ─── Actions ─────────────────────────────────────────────────────────────────
+    async function quickAdd(amount, name = null, category = null) {
+      const entry = { ts: Date.now(), amount: parseInt(amount), name, category };
+      logs.push(entry);
+      saveToLocal();
       updateUI();
+
+      // Sync to Supabase in background
+      const id = await saveLogToSupabase(entry);
+      if (id !== null) entry.id = id;
     }
 
     function showCustomAdd() {
       const amount = prompt("Wie viele ml hast du getrunken?", "300");
-      if (amount && !isNaN(amount) && amount > 0) {
-        logs.push({ ts: Date.now(), amount: parseInt(amount) });
-        saveData();
-        updateUI();
-      }
+      if (amount && !isNaN(amount) && amount > 0) quickAdd(parseInt(amount), null, 'custom');
     }
 
-    function deleteEntry(index) {
-      if (confirm("Eintrag wirklich löschen?")) {
-        logs.splice(index, 1);
-        saveData();
-        updateUI();
-      }
+    async function deleteEntry(index) {
+      const sorted = [...logs].sort((a, b) => b.ts - a.ts);
+      const entry  = sorted[index];
+      const realIdx = logs.indexOf(entry);
+
+      if (!confirm("Eintrag wirklich löschen?")) return;
+
+      if (entry.id) await deleteLogFromSupabase(entry.id);
+
+      logs.splice(realIdx, 1);
+      saveToLocal();
+      updateUI();
     }
 
+    // ─── Settings Modal ───────────────────────────────────────────────────────────
     function toggleSettings() {
       const modal = document.getElementById('settings-modal');
       if (modal.classList.contains('hidden')) {
-        document.getElementById('goal-input').value = settings.goal;
-        document.getElementById('start-time').value = settings.startTime;
-        document.getElementById('end-time').value = settings.endTime;
+        document.getElementById('goal-input').value    = settings.goal;
+        document.getElementById('start-time').value    = settings.startTime;
+        document.getElementById('end-time').value      = settings.endTime;
         modal.classList.remove('hidden');
       } else {
         modal.classList.add('hidden');
       }
     }
 
-    function saveSettings() {
-      settings.goal = parseInt(document.getElementById('goal-input').value) || 2000;
-      settings.startTime = document.getElementById('start-time').value || "08:00";
-      settings.endTime = document.getElementById('end-time').value || "22:00";
-      saveData();
+    async function saveSettings() {
+      settings.goal          = parseInt(document.getElementById('goal-input').value) || 2000;
+      settings.startTime     = document.getElementById('start-time').value || "08:00";
+      settings.endTime       = document.getElementById('end-time').value   || "22:00";
+      // Keys are hardcoded — not read from form
+      saveToLocal();
+      initSupabase();
+      await saveSettingsToSupabase();
       toggleSettings();
       updateUI();
+      showToast('✅ Einstellungen gespeichert');
     }
 
-    // Start
-    window.onload = () => {
-      loadData();
+    // ─── Init ─────────────────────────────────────────────────────────────────────
+    window.onload = async () => {
+      loadFromLocal();
+      initSupabase();
+
+      // Always restore hardcoded keys (in case localStorage overwrote them)
+      settings.supabaseUrl   = SUPABASE_URL;
+      settings.supabaseKey   = SUPABASE_KEY;
+      settings.pushoverToken = PUSHOVER_TOKEN;
+      settings.pushoverUser  = PUSHOVER_USER;
+      initSupabase();
+
+      const loaded = await loadFromSupabase();
+      if (loaded) {
+        saveToLocal(); // sync local cache
+        showToast('☁️ Daten aus Supabase geladen');
+      }
+
       updateUI();
-      setInterval(checkReminder, 120000);
+      setInterval(checkReminder, 120_000); // check every 2 minutes
     };
   </script>
 </body>
