@@ -1050,8 +1050,8 @@
       const avgMl         = daysWithData.length ? Math.round(daysWithData.reduce((s,d) => s+d.total,0) / daysWithData.length) : 0;
       const successRate   = dayArr.length ? Math.round((daysGoalMet.length / dayArr.length) * 100) : 0;
 
-      // Best streak in period
-      let bestStreak = 0, curStreak = 0;
+      // Best streak in period (also consider current overall winstreak)
+      let bestStreak = settings.winstreak, curStreak = 0;
       dayArr.forEach(d => {
         if (d.total >= d.goal) { curStreak++; bestStreak = Math.max(bestStreak, curStreak); }
         else curStreak = 0;
@@ -1096,28 +1096,28 @@
           <p class="text-zinc-400 text-xs uppercase tracking-widest mb-3">Kennzahlen</p>
           <div class="grid grid-cols-2 gap-3">
             <div class="bg-zinc-800 rounded-2xl p-4">
-              <p class="text-zinc-400 text-xs mb-1">Ø pro Tag</p>
-              <p class="text-2xl font-bold">${avgMl} <span class="text-sm text-zinc-500">ml</span></p>
+              <p class="text-zinc-400 text-xs mb-1">Bester Streak</p>
+              <p class="text-2xl font-bold">🔥 ${bestStreak} <span class="text-sm text-zinc-500">Tage</span></p>
             </div>
             <div class="bg-zinc-800 rounded-2xl p-4">
               <p class="text-zinc-400 text-xs mb-1">Ziel erreicht</p>
               <p class="text-2xl font-bold">${successRate}<span class="text-sm text-zinc-500">%</span></p>
             </div>
             <div class="bg-zinc-800 rounded-2xl p-4">
-              <p class="text-zinc-400 text-xs mb-1">Bester Streak</p>
-              <p class="text-2xl font-bold">🔥 ${bestStreak} <span class="text-sm text-zinc-500">Tage</span></p>
-            </div>
-            <div class="bg-zinc-800 rounded-2xl p-4">
-              <p class="text-zinc-400 text-xs mb-1">Lieblingsgetränk</p>
-              <p class="text-lg font-bold">${topDrink ? (DRINK_EMOJIS[topDrink[0]] || '🥤') + ' ' + topDrink[0] : '–'}</p>
+              <p class="text-zinc-400 text-xs mb-1">Ziel-Tage</p>
+              <p class="text-2xl font-bold text-green-400">${daysGoalMet.length} <span class="text-sm text-zinc-500">Tage</span></p>
             </div>
             <div class="bg-zinc-800 rounded-2xl p-4">
               <p class="text-zinc-400 text-xs mb-1">Tage mit Daten</p>
               <p class="text-2xl font-bold">${daysWithData.length} <span class="text-sm text-zinc-500">Tage</span></p>
             </div>
             <div class="bg-zinc-800 rounded-2xl p-4">
-              <p class="text-zinc-400 text-xs mb-1">Ziel-Tage</p>
-              <p class="text-2xl font-bold text-green-400">${daysGoalMet.length} <span class="text-sm text-zinc-500">Tage</span></p>
+              <p class="text-zinc-400 text-xs mb-1">Ø pro Tag</p>
+              <p class="text-2xl font-bold">${avgMl} <span class="text-sm text-zinc-500">ml</span></p>
+            </div>
+            <div class="bg-zinc-800 rounded-2xl p-4">
+              <p class="text-zinc-400 text-xs mb-1">Lieblingsgetränk</p>
+              <p class="text-lg font-bold">${topDrink ? (DRINK_EMOJIS[topDrink[0]] || '🥤') + ' ' + topDrink[0] : '–'}</p>
             </div>
           </div>
         </div>
