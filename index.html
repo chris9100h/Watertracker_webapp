@@ -92,6 +92,7 @@
       </div>
       <div class="flex items-center gap-2">
         <span id="sync-indicator" class="text-xs px-2 py-1 rounded-full bg-orange-700 hidden">⏳ Sync</span>
+        <button onclick="openStats()" class="text-3xl">📊</button>
         <button onclick="toggleSettings()" class="text-3xl">⚙️</button>
       </div>
     </div>
@@ -231,7 +232,45 @@
 
   </div>
 
-  <!-- Toast -->
+  <!-- Stats Sheet -->
+  <div id="stats-modal" class="hidden fixed inset-0 bg-black/80 flex items-end z-50">
+    <div class="bg-zinc-900 rounded-t-3xl w-full max-h-[92vh] overflow-auto" style="animation: slideUp 0.3s ease-out">
+      <div class="sticky top-0 bg-zinc-900 rounded-t-3xl px-6 pt-6 pb-4 border-b border-zinc-800 z-10">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-2xl font-semibold">📊 Statistiken</h2>
+          <button onclick="closeStats()" class="text-4xl leading-none text-zinc-400">×</button>
+        </div>
+        <!-- Zeitraum Tabs -->
+        <div class="flex gap-2">
+          <button onclick="setStatsPeriod(7)"   id="stats-tab-7"      class="stats-tab active-tab px-4 py-2 rounded-xl text-sm font-medium transition">7T</button>
+          <button onclick="setStatsPeriod(30)"  id="stats-tab-30"     class="stats-tab px-4 py-2 rounded-xl text-sm font-medium transition">30T</button>
+          <button onclick="setStatsPeriod(90)"  id="stats-tab-90"     class="stats-tab px-4 py-2 rounded-xl text-sm font-medium transition">90T</button>
+          <button onclick="setStatsPeriod('custom')" id="stats-tab-custom" class="stats-tab px-4 py-2 rounded-xl text-sm font-medium transition">Custom</button>
+        </div>
+        <!-- Custom Datepicker -->
+        <div id="stats-custom-range" class="hidden mt-3 grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-zinc-400 text-xs mb-1 block">Von</label>
+            <input id="stats-from" type="date" class="w-full bg-zinc-800 rounded-xl px-3 py-2 text-sm">
+          </div>
+          <div>
+            <label class="text-zinc-400 text-xs mb-1 block">Bis</label>
+            <input id="stats-to" type="date" class="w-full bg-zinc-800 rounded-xl px-3 py-2 text-sm">
+          </div>
+          <button onclick="loadCustomStats()" class="col-span-2 bg-orange-600 py-2 rounded-xl text-sm font-medium">Anzeigen</button>
+        </div>
+      </div>
+
+      <div class="px-6 py-5 space-y-6" id="stats-content">
+        <p class="text-zinc-500 text-center py-8">Lade Daten...</p>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .stats-tab { background: #27272a; color: #a1a1aa; }
+    .stats-tab.active-tab { background: #ea580c; color: white; }
+  </style>
   <div id="toast"></div>
 
   <!-- Erfolgs-Modal -->
@@ -448,11 +487,27 @@
 
         showSync(false);
         if (error) throw error;
+
+        // Save today's goal (upsert – safe to call every time, DB ignores duplicates)
+        saveDailyGoal(today);
+
         return data?.id ?? null;
       } catch(e) {
         console.error('Supabase save log error:', e);
         showSync(false);
         return null;
+      }
+    }
+
+    async function saveDailyGoal(date) {
+      if (!supabaseClient) return;
+      try {
+        await supabaseClient.from('water_daily').upsert({
+          date: date,
+          goal: settings.goal
+        }, { onConflict: 'date', ignoreDuplicates: true });
+      } catch(e) {
+        console.error('Supabase saveDailyGoal error:', e);
       }
     }
 
@@ -890,6 +945,236 @@
       toggleSettings();
       updateUI();
       showToast('✅ Einstellungen gespeichert');
+    }
+
+    // ─── Stats ────────────────────────────────────────────────────────────────────
+    let statsPeriod = 7;
+    let statsChartInstance = null;
+
+    const DRINK_EMOJIS = {
+      'Kaffee': '☕', 'Espresso': '☕', 'Double Espresso': '☕',
+      'Schwarz': '☕', 'Barista': '☕', 'Gran Lungo': '☕', 'TGW': '☕', 'Mug': '☕',
+      'Energy Drink': '⚡', 'Whey Shake': '🥤',
+      '500ml Glas': '🥛', '650ml Glas': '🥛', 'Barbarian Jug': '🏺'
+    };
+
+
+    function openStats() {
+      document.getElementById('stats-modal').classList.remove('hidden');
+      setStatsPeriod(7);
+    }
+
+    function closeStats() {
+      document.getElementById('stats-modal').classList.add('hidden');
+    }
+
+    function setStatsPeriod(period) {
+      statsPeriod = period;
+      // Update tabs
+      ['7','30','90','custom'].forEach(t => {
+        document.getElementById(`stats-tab-${t}`).classList.remove('active-tab');
+      });
+      const key = period === 'custom' ? 'custom' : period;
+      document.getElementById(`stats-tab-${key}`).classList.add('active-tab');
+
+      // Show/hide custom range
+      const customEl = document.getElementById('stats-custom-range');
+      if (period === 'custom') {
+        customEl.classList.remove('hidden');
+        return; // wait for user to pick dates
+      } else {
+        customEl.classList.add('hidden');
+      }
+
+      const to   = new Date();
+      const from = new Date();
+      from.setDate(from.getDate() - (period - 1));
+      loadStats(from.toISOString().split('T')[0], to.toISOString().split('T')[0]);
+    }
+
+    function loadCustomStats() {
+      const from = document.getElementById('stats-from').value;
+      const to   = document.getElementById('stats-to').value;
+      if (!from || !to) { showToast('Bitte beide Daten wählen'); return; }
+      loadStats(from, to);
+    }
+
+    async function loadStats(fromDate, toDate) {
+      const content = document.getElementById('stats-content');
+      content.innerHTML = '<p class="text-zinc-500 text-center py-8">⏳ Lade Daten...</p>';
+
+      try {
+        // Load logs
+        const { data: logs } = await supabaseClient
+          .from('water_logs').select('*')
+          .gte('date', fromDate).lte('date', toDate)
+          .order('date', { ascending: true });
+
+        // Load daily goals
+        const { data: dailyGoals } = await supabaseClient
+          .from('water_daily').select('*')
+          .gte('date', fromDate).lte('date', toDate);
+
+        const goalMap = {};
+        (dailyGoals || []).forEach(d => goalMap[d.date] = d.goal);
+
+        // Build day-by-day structure
+        const days = {};
+        const from = new Date(fromDate);
+        const to   = new Date(toDate);
+        for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+          const key = d.toISOString().split('T')[0];
+          days[key] = { date: key, total: 0, goal: goalMap[key] || settings.goal, logs: [] };
+        }
+        (logs || []).forEach(l => {
+          if (days[l.date]) {
+            days[l.date].total += l.amount;
+            days[l.date].logs.push(l);
+          }
+        });
+
+        const dayArr = Object.values(days);
+        renderStats(dayArr, logs || []);
+      } catch(e) {
+        content.innerHTML = '<p class="text-red-400 text-center py-8">Fehler beim Laden</p>';
+        console.error(e);
+      }
+    }
+
+    function renderStats(dayArr, allLogs) {
+      const content = document.getElementById('stats-content');
+
+      // ── Kennzahlen ──
+      const daysWithData  = dayArr.filter(d => d.total > 0);
+      const daysGoalMet   = dayArr.filter(d => d.total >= d.goal);
+      const avgMl         = daysWithData.length ? Math.round(daysWithData.reduce((s,d) => s+d.total,0) / daysWithData.length) : 0;
+      const successRate   = dayArr.length ? Math.round((daysGoalMet.length / dayArr.length) * 100) : 0;
+
+      // Best streak in period
+      let bestStreak = 0, curStreak = 0;
+      dayArr.forEach(d => {
+        if (d.total >= d.goal) { curStreak++; bestStreak = Math.max(bestStreak, curStreak); }
+        else curStreak = 0;
+      });
+
+      // Drink breakdown (other category, group by base name)
+      const drinkCounts = {};
+      allLogs.filter(l => l.category === 'other').forEach(l => {
+        const base = (l.name || 'Unbekannt').replace(/ \(\+\d+ml Milch\)/, '').replace(/ \(.*\)/, '');
+        // Group all coffee variants under Kaffee
+        const key = ['Espresso','Double Espresso','Schwarz','Barista','Gran Lungo','TGW','Mug'].includes(base) ? 'Kaffee' : base;
+        drinkCounts[key] = (drinkCounts[key] || 0) + 1;
+      });
+
+      // Bottles total (from settings – all time)
+      const bottlesTotal = settings.bottlesToday || 0;
+
+      // Most frequent drink
+      const topDrink = Object.entries(drinkCounts).sort((a,b) => b[1]-a[1])[0];
+
+      // ── Chart data ──
+      const chartLabels = dayArr.map(d => {
+        const dt = new Date(d.date + 'T00:00:00');
+        return dt.toLocaleDateString('de-AT', { day: '2-digit', month: '2-digit' });
+      });
+      const chartActual  = dayArr.map(d => d.total);
+      const chartGoal    = dayArr.map(d => d.goal);
+      const chartColors  = dayArr.map(d => d.total >= d.goal ? '#22c55e' : '#f97316');
+
+
+      content.innerHTML = `
+        <!-- Chart -->
+        <div>
+          <p class="text-zinc-400 text-xs uppercase tracking-widest mb-3">Verlauf</p>
+          <div style="position:relative;height:180px;">
+            <canvas id="stats-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- Kennzahlen -->
+        <div>
+          <p class="text-zinc-400 text-xs uppercase tracking-widest mb-3">Kennzahlen</p>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-zinc-800 rounded-2xl p-4">
+              <p class="text-zinc-400 text-xs mb-1">Ø pro Tag</p>
+              <p class="text-2xl font-bold">${avgMl} <span class="text-sm text-zinc-500">ml</span></p>
+            </div>
+            <div class="bg-zinc-800 rounded-2xl p-4">
+              <p class="text-zinc-400 text-xs mb-1">Ziel erreicht</p>
+              <p class="text-2xl font-bold">${successRate}<span class="text-sm text-zinc-500">%</span></p>
+            </div>
+            <div class="bg-zinc-800 rounded-2xl p-4">
+              <p class="text-zinc-400 text-xs mb-1">Bester Streak</p>
+              <p class="text-2xl font-bold">🔥 ${bestStreak} <span class="text-sm text-zinc-500">Tage</span></p>
+            </div>
+            <div class="bg-zinc-800 rounded-2xl p-4">
+              <p class="text-zinc-400 text-xs mb-1">Lieblingsgetränk</p>
+              <p class="text-lg font-bold">${topDrink ? (DRINK_EMOJIS[topDrink[0]] || '🥤') + ' ' + topDrink[0] : '–'}</p>
+            </div>
+            <div class="bg-zinc-800 rounded-2xl p-4">
+              <p class="text-zinc-400 text-xs mb-1">Tage mit Daten</p>
+              <p class="text-2xl font-bold">${daysWithData.length} <span class="text-sm text-zinc-500">Tage</span></p>
+            </div>
+            <div class="bg-zinc-800 rounded-2xl p-4">
+              <p class="text-zinc-400 text-xs mb-1">Ziel-Tage</p>
+              <p class="text-2xl font-bold text-green-400">${daysGoalMet.length} <span class="text-sm text-zinc-500">Tage</span></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Getränke Breakdown -->
+        <div>
+          <p class="text-zinc-400 text-xs uppercase tracking-widest mb-3">Andere Getränke</p>
+          <div class="bg-zinc-800 rounded-2xl p-4 space-y-2">
+            ${Object.keys(drinkCounts).length === 0
+              ? '<p class="text-zinc-500 text-sm italic">Keine Einträge</p>'
+              : Object.entries(drinkCounts).sort((a,b) => b[1]-a[1]).map(([name, count]) =>
+                `<div class="flex justify-between items-center">
+                  <span class="text-sm">${DRINK_EMOJIS[name] || '🥤'} ${name}</span>
+                  <span class="font-bold text-orange-400">${count}×</span>
+                </div>`
+              ).join('')
+            }
+          </div>
+        </div>
+
+      `;
+
+      // Render chart
+      if (statsChartInstance) statsChartInstance.destroy();
+      const ctx = document.getElementById('stats-chart');
+      statsChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: chartLabels,
+          datasets: [
+            {
+              label: 'Getrunken',
+              data: chartActual,
+              backgroundColor: chartColors,
+              borderRadius: 6,
+            },
+            {
+              label: 'Ziel',
+              data: chartGoal,
+              type: 'line',
+              borderColor: '#f97316',
+              borderDash: [4,3],
+              borderWidth: 2,
+              pointRadius: 0,
+              fill: false,
+            }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, grid: { color: '#27272a' }, ticks: { color: '#71717a' } },
+            x: { grid: { display: false }, ticks: { color: '#71717a', maxTicksLimit: 10, maxRotation: 45 } }
+          }
+        }
+      });
     }
 
     // ─── Init ─────────────────────────────────────────────────────────────────────
