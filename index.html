@@ -255,15 +255,13 @@
         </div>
         <!-- Custom Datepicker -->
         <div id="stats-custom-range" class="hidden mt-3 space-y-2">
-          <div class="flex gap-2">
-            <div style="flex:1;min-width:0">
-              <label class="text-zinc-400 text-xs mb-1 block">Von</label>
-              <input id="stats-from" type="date" style="width:100%;box-sizing:border-box;" class="bg-zinc-800 rounded-xl px-2 py-2 text-sm">
-            </div>
-            <div style="flex:1;min-width:0">
-              <label class="text-zinc-400 text-xs mb-1 block">Bis</label>
-              <input id="stats-to" type="date" style="width:100%;box-sizing:border-box;" class="bg-zinc-800 rounded-xl px-2 py-2 text-sm">
-            </div>
+          <div>
+            <label class="text-zinc-400 text-xs mb-1 block">Von</label>
+            <input id="stats-from" type="date" class="w-full bg-zinc-800 rounded-xl px-3 py-2 text-sm">
+          </div>
+          <div>
+            <label class="text-zinc-400 text-xs mb-1 block">Bis</label>
+            <input id="stats-to" type="date" class="w-full bg-zinc-800 rounded-xl px-3 py-2 text-sm">
           </div>
           <button onclick="loadCustomStats()" class="w-full bg-orange-600 py-2 rounded-xl text-sm font-medium">Anzeigen</button>
         </div>
@@ -1030,34 +1028,40 @@
       document.getElementById('stats-modal').classList.add('hidden');
     }
 
+    function todayStr() {
+      return new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD in local time
+    }
+
+    function offsetDateStr(days) {
+      const d = new Date();
+      d.setDate(d.getDate() - days);
+      return d.toLocaleDateString('sv-SE');
+    }
+
     function setStatsPeriod(period) {
       statsPeriod = period;
-      // Update tabs
       ['7','30','90','custom'].forEach(t => {
         document.getElementById(`stats-tab-${t}`).classList.remove('active-tab');
       });
       const key = period === 'custom' ? 'custom' : period;
       document.getElementById(`stats-tab-${key}`).classList.add('active-tab');
 
-      // Show/hide custom range
       const customEl = document.getElementById('stats-custom-range');
       if (period === 'custom') {
         customEl.classList.remove('hidden');
-        return; // wait for user to pick dates
+        return;
       } else {
         customEl.classList.add('hidden');
       }
 
-      const to   = new Date();
-      const from = new Date();
-      from.setDate(from.getDate() - (period - 1));
-      loadStats(from.toISOString().split('T')[0], to.toISOString().split('T')[0]);
+      loadStats(offsetDateStr(period - 1), todayStr());
     }
 
     function loadCustomStats() {
       const from = document.getElementById('stats-from').value;
       const to   = document.getElementById('stats-to').value;
       if (!from || !to) { showToast('Bitte beide Daten wählen'); return; }
+      if (from > to) { showToast('Von muss vor Bis liegen'); return; }
       loadStats(from, to);
     }
 
@@ -1066,13 +1070,11 @@
       content.innerHTML = '<p class="text-zinc-500 text-center py-8">⏳ Lade Daten...</p>';
 
       try {
-        // Load logs
-        const { data: logs } = await supabaseClient
+        const { data: logsData } = await supabaseClient
           .from('water_logs').select('*')
           .gte('date', fromDate).lte('date', toDate)
           .order('date', { ascending: true });
 
-        // Load daily goals
         const { data: dailyGoals } = await supabaseClient
           .from('water_daily').select('*')
           .gte('date', fromDate).lte('date', toDate);
@@ -1080,23 +1082,25 @@
         const goalMap = {};
         (dailyGoals || []).forEach(d => goalMap[d.date] = d.goal);
 
-        // Build day-by-day structure
+        // Build day-by-day using string iteration to avoid timezone issues
         const days = {};
-        const from = new Date(fromDate);
-        const to   = new Date(toDate);
-        for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
-          const key = d.toISOString().split('T')[0];
+        const cur = new Date(fromDate + 'T12:00:00'); // noon to avoid DST issues
+        const end = new Date(toDate   + 'T12:00:00');
+        while (cur <= end) {
+          const key = cur.toLocaleDateString('sv-SE');
           days[key] = { date: key, total: 0, goal: goalMap[key] || settings.goal, logs: [] };
+          cur.setDate(cur.getDate() + 1);
         }
-        (logs || []).forEach(l => {
+
+        (logsData || []).forEach(l => {
           if (days[l.date]) {
-            days[l.date].total += l.amount;
+            days[l.date].total += parseInt(l.amount);
             days[l.date].logs.push(l);
           }
         });
 
         const dayArr = Object.values(days);
-        renderStats(dayArr, logs || []);
+        renderStats(dayArr, logsData || []);
       } catch(e) {
         content.innerHTML = '<p class="text-red-400 text-center py-8">Fehler beim Laden</p>';
         console.error(e);
