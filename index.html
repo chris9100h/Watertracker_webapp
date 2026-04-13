@@ -839,27 +839,20 @@
     }
 
     function drawNowLine(chart) {
-      const { ctx, chartArea, scales } = chart;
+      const { ctx, chartArea } = chart;
       if (!chartArea) return;
-      const xScale = scales.x;
       const now = new Date();
       const nowDecimal = now.getHours() + now.getMinutes() / 60;
       const labels = chart.data.labels;
+      const startH = parseInt(labels[0].split(':')[0]);
+      const endH   = parseInt(labels[labels.length-1].split(':')[0]);
 
-      // Find surrounding labels and interpolate pixel position
-      let x = null;
-      for (let i = 0; i < labels.length - 1; i++) {
-        const h0 = parseInt(labels[i].split(':')[0]);
-        const h1 = parseInt(labels[i+1].split(':')[0]);
-        if (nowDecimal >= h0 && nowDecimal < h1) {
-          const t  = (nowDecimal - h0) / (h1 - h0);
-          const x0 = xScale.getPixelForTick(i);
-          const x1 = xScale.getPixelForTick(i + 1);
-          x = x0 + t * (x1 - x0);
-          break;
-        }
-      }
-      if (x === null) return;
+      // Outside chart range – don't draw
+      if (nowDecimal < startH || nowDecimal > endH) return;
+
+      // Calculate x position proportionally across the chart area
+      const fraction = (nowDecimal - startH) / (endH - startH);
+      const x = chartArea.left + fraction * (chartArea.right - chartArea.left);
 
       ctx.save();
       ctx.beginPath();
