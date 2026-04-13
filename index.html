@@ -246,7 +246,18 @@
     </div>
   </div>
 
-  <!-- Milch Modal -->
+  <!-- Flasche leer Modal -->
+  <div id="bottle-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:200;align-items:center;justify-content:center;padding:20px;">
+    <div class="bg-zinc-900 rounded-3xl p-8 w-full max-w-sm border border-orange-800 text-center" style="animation: popIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275)">
+      <div style="font-size:64px;line-height:1;margin-bottom:16px;">🍶</div>
+      <h2 class="text-2xl font-bold mb-2">Flasche leer?</h2>
+      <p class="text-zinc-400 text-sm mb-8">Du hast 1500 ml über die Wassermengen-Buttons hinzugefügt.</p>
+      <div class="grid grid-cols-2 gap-3">
+        <button onclick="confirmBottle(true)"  class="bg-orange-600 hover:bg-orange-500 py-4 rounded-2xl font-semibold transition active:scale-95">✅ Ja, leer!</button>
+        <button onclick="confirmBottle(false)" class="bg-zinc-700 hover:bg-zinc-600 py-4 rounded-2xl font-semibold transition active:scale-95">❌ Nein</button>
+      </div>
+    </div>
+  </div>
   <div id="milk-modal">
     <div class="bg-zinc-900 rounded-3xl p-6 w-full max-w-sm border border-orange-800">
       <h3 class="text-xl font-semibold mb-1">☕ Kaffee mit Milch?</h3>
@@ -285,13 +296,14 @@
       pushoverToken: PUSHOVER_TOKEN,
       pushoverUser: PUSHOVER_USER,
       winstreak: 0,
-      lastGoalDate: null  // 'YYYY-MM-DD' of last day goal was reached
+      lastGoalDate: null,
+      bottlesToday: 0,
+      bottlesDate: null
     };
-    let goalReachedToday = false; // flag to avoid showing modal multiple times per session
+    let goalReachedToday = false;
+    let pendingBottomlessMl = 0; // cumulative water-button ml since last bottle confirm
     let logs = [];
     let supabaseClient = null;
-    let lastPushoverSent = 0; // timestamp of last pushover notification
-    const PUSHOVER_COOLDOWN = 30 * 60 * 1000; // 30 minutes
 
     const STORAGE_SETTINGS = 'waterTrackerSettings';
     const STORAGE_LOGS     = 'waterTrackerLogs';
@@ -341,6 +353,15 @@
           settings.endTime      = settingsData.end_time     ?? settings.endTime;
           settings.winstreak    = settingsData.winstreak    ?? 0;
           settings.lastGoalDate = settingsData.last_goal_date ?? null;
+          // Reset bottles if it's a new day
+          const todayStr = new Date().toISOString().split('T')[0];
+          if (settingsData.bottles_date === todayStr) {
+            settings.bottlesToday = settingsData.bottles_today ?? 0;
+            settings.bottlesDate  = settingsData.bottles_date ?? null;
+          } else {
+            settings.bottlesToday = 0;
+            settings.bottlesDate  = null;
+          }
         }
 
         // Load today's logs
@@ -414,7 +435,9 @@
           start_time:     settings.startTime,
           end_time:       settings.endTime,
           winstreak:      settings.winstreak,
-          last_goal_date: settings.lastGoalDate
+          last_goal_date: settings.lastGoalDate,
+          bottles_today:  settings.bottlesToday,
+          bottles_date:   settings.bottlesDate
         });
       } catch(e) {
         console.error('Supabase save settings error:', e);
@@ -443,38 +466,19 @@
     }
 
     // ─── Pushover ────────────────────────────────────────────────────────────────
-    async function sendPushover(message, title = "💧 Wasser Tracker") {
-      if (!settings.pushoverToken || !settings.pushoverUser) return false;
-      try {
-        // Pushover doesn't allow direct browser requests due to CORS,
-        // so we use a CORS proxy or the Pushover endpoint with no-cors mode.
-        // We use a FormData approach which works better cross-origin.
-        const body = new FormData();
-        body.append('token',   settings.pushoverToken);
-        body.append('user',    settings.pushoverUser);
-        body.append('message', message);
-        body.append('title',   title);
-        body.append('sound',   'droplet');
-
-        await fetch('https://api.pushover.net/1/messages.json', {
-          method: 'POST',
-          body,
-          mode: 'no-cors' // Pushover responds but browser blocks reading – that's fine, send still works
-        });
-        return true;
-      } catch(e) {
-        console.error('Pushover error:', e);
-        return false;
-      }
-    }
-
     async function testPushover() {
-      if (!settings.pushoverToken || !settings.pushoverUser) {
-        showToast('❌ Bitte zuerst Token & User Key eintragen');
-        return;
+      const body = new FormData();
+      body.append('token',   settings.pushoverToken);
+      body.append('user',    settings.pushoverUser);
+      body.append('message', 'Test erfolgreich! 💧 Dein Wasser Tracker ist verbunden.');
+      body.append('title',   '💧 Wasser Tracker Test');
+      body.append('sound',   'droplet');
+      try {
+        await fetch('https://api.pushover.net/1/messages.json', { method: 'POST', body, mode: 'no-cors' });
+        showToast('🔔 Test-Push abgeschickt – check dein Handy!');
+      } catch(e) {
+        showToast('❌ Pushover fehlgeschlagen');
       }
-      await sendPushover('Test erfolgreich! 💧 Dein Wasser Tracker ist verbunden.', '💧 Wasser Tracker Test');
-      showToast('🔔 Test-Push abgeschickt – check dein Handy!');
     }
 
     // ─── Reminder + Pushover check ────────────────────────────────────────────
@@ -493,7 +497,7 @@
       return logs.reduce((sum, e) => sum + e.amount, 0);
     }
 
-    async function checkReminder() {
+    function checkReminder() {
       const drunk    = getTodayTotal();
       const expected = getCurrentExpected();
       const behind   = drunk < expected - 120;
@@ -503,19 +507,6 @@
         const missing = Math.max(200, Math.round(expected - drunk));
         document.getElementById('reminder-subtext').textContent = `Trink jetzt ca. ${missing} ml`;
         banner.classList.remove('hidden');
-
-        // Pushover – max 1x per 30 min
-        const now = Date.now();
-        if (now - lastPushoverSent > PUSHOVER_COOLDOWN) {
-          const sent = await sendPushover(
-            `Du liegst ${missing} ml hinter deinem Ziel! Trink jetzt. 💧 (${drunk} / ${expected} ml)`,
-            '💧 Wasser-Erinnerung'
-          );
-          if (sent) {
-            lastPushoverSent = now;
-            console.log('Pushover sent at', new Date().toLocaleTimeString());
-          }
-        }
       } else {
         banner.classList.add('hidden');
       }
@@ -550,16 +541,26 @@
       };
 
       const breakdownEl = document.getElementById('other-drinks-breakdown');
-      if (Object.keys(breakdown).length === 0) {
+      const today = new Date().toISOString().split('T')[0];
+      const bottleCount = (settings.bottlesDate === today) ? (settings.bottlesToday || 0) : 0;
+
+      if (Object.keys(breakdown).length === 0 && bottleCount === 0) {
         breakdownEl.innerHTML = '<span class="text-zinc-600 italic">Noch nichts eingetragen</span>';
       } else {
-        breakdownEl.innerHTML = Object.entries(breakdown)
+        let html = '';
+        if (bottleCount > 0) {
+          html += `<span class="inline-flex items-center gap-1.5 bg-zinc-800 rounded-xl px-3 py-1.5 mr-2 mb-2 font-medium">
+            🍶 Flasche <span class="text-orange-400 font-bold ml-1">${bottleCount}×</span>
+          </span>`;
+        }
+        html += Object.entries(breakdown)
           .map(([name, d]) => {
             const emoji = drinkEmojis[name] || '🥤';
             return `<span class="inline-flex items-center gap-1.5 bg-zinc-800 rounded-xl px-3 py-1.5 mr-2 mb-2 font-medium">
               ${emoji} ${name} <span class="text-orange-400 font-bold ml-1">${d.count}×</span>
             </span>`;
           }).join('');
+        breakdownEl.innerHTML = html;
       }
 
       document.getElementById('custom-total-ml').innerHTML = `${customTotal} <span class="text-sm text-zinc-500">ml</span>`;
@@ -717,6 +718,23 @@
     function closeSuccessModal() {
       document.getElementById('success-modal').style.display = 'none';
     }
+
+    // ─── Flasche ─────────────────────────────────────────────────────────────────
+    async function confirmBottle(isEmpty) {
+      document.getElementById('bottle-modal').style.display = 'none';
+      pendingBottomlessMl = 0;
+
+      if (isEmpty) {
+        const today = new Date().toISOString().split('T')[0];
+        settings.bottlesToday = (settings.bottlesToday || 0) + 1;
+        settings.bottlesDate  = today;
+        saveToLocal();
+        await saveSettingsToSupabase();
+        updateUI();
+        showToast(`🍶 Flasche ${settings.bottlesToday} eingetragen!`);
+      }
+    }
+
     function addKaffee() {
       document.getElementById('milk-modal').classList.add('open');
     }
@@ -732,10 +750,20 @@
     async function quickAdd(amount, name = null, category = null) {
       const entry = { ts: Date.now(), amount: parseInt(amount), name, category };
       logs.push(entry);
+
+      // Track cumulative water-button ml for bottle check
+      if (!category) {
+        pendingBottomlessMl += parseInt(amount);
+        if (pendingBottomlessMl >= 1500) {
+          setTimeout(() => {
+            document.getElementById('bottle-modal').style.display = 'flex';
+          }, 400); // slight delay so UI updates first
+        }
+      }
+
       saveToLocal();
       updateUI();
 
-      // Sync to Supabase in background
       const id = await saveLogToSupabase(entry);
       if (id !== null) entry.id = id;
     }
@@ -803,7 +831,7 @@
       }
 
       updateUI();
-      setInterval(checkReminder, 120_000);
+      setInterval(checkReminder, 120_000); // banner only, pushover via edge function
     };
   </script>
 </body>
