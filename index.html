@@ -15,6 +15,11 @@
     .progress-orange { background: linear-gradient(90deg, #f97316, #fb923c); }
     #chart-container { position: relative; width: 100%; height: 220px; }
 
+    @keyframes popIn {
+      from { transform: scale(0.7); opacity: 0; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
+
     /* Notification toast */
     #toast {
       position: fixed;
@@ -99,6 +104,11 @@
             <p id="goal-text" class="text-zinc-400 text-sm">von 2000 ml</p>
             <p id="progress-percent" class="text-5xl font-bold orange-accent">0%</p>
           </div>
+        </div>
+        <!-- Winstreak Badge -->
+        <div id="winstreak-badge" class="flex items-center justify-between mb-2">
+          <span class="text-xs text-zinc-500">Winstreak</span>
+          <span id="winstreak-display" class="text-sm font-bold text-orange-400">🔥 0 Tage</span>
         </div>
         <div class="h-4 bg-zinc-800 rounded-2xl overflow-hidden">
           <div id="progress-bar" class="h-full progress-orange rounded-2xl transition-all duration-500" style="width: 0%"></div>
@@ -220,6 +230,22 @@
   <!-- Toast -->
   <div id="toast"></div>
 
+  <!-- Erfolgs-Modal -->
+  <div id="success-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:200;align-items:center;justify-content:center;padding:20px;">
+    <div class="bg-zinc-900 rounded-3xl p-8 w-full max-w-sm border border-orange-500 text-center" style="animation: popIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275)">
+      <div id="success-emoji" style="font-size:72px;line-height:1;margin-bottom:16px;">🏆</div>
+      <h2 id="success-title" class="text-2xl font-bold mb-2">Tagesziel erreicht!</h2>
+      <p id="success-subtitle" class="text-zinc-400 mb-6 text-sm"></p>
+      <div id="success-streak" class="bg-orange-600 rounded-2xl py-3 px-6 mb-6 inline-block">
+        <span class="text-2xl font-bold">🔥 <span id="success-streak-count">1</span> Tage Streak!</span>
+      </div>
+      <br>
+      <button onclick="closeSuccessModal()" class="bg-zinc-700 hover:bg-zinc-600 px-8 py-3 rounded-2xl font-medium transition">
+        Weiter so! 💪
+      </button>
+    </div>
+  </div>
+
   <!-- Milch Modal -->
   <div id="milk-modal">
     <div class="bg-zinc-900 rounded-3xl p-6 w-full max-w-sm border border-orange-800">
@@ -257,8 +283,11 @@
       supabaseUrl: SUPABASE_URL,
       supabaseKey: SUPABASE_KEY,
       pushoverToken: PUSHOVER_TOKEN,
-      pushoverUser: PUSHOVER_USER
+      pushoverUser: PUSHOVER_USER,
+      winstreak: 0,
+      lastGoalDate: null  // 'YYYY-MM-DD' of last day goal was reached
     };
+    let goalReachedToday = false; // flag to avoid showing modal multiple times per session
     let logs = [];
     let supabaseClient = null;
     let lastPushoverSent = 0; // timestamp of last pushover notification
@@ -307,9 +336,11 @@
           .single();
 
         if (settingsData) {
-          settings.goal      = settingsData.goal      ?? settings.goal;
-          settings.startTime = settingsData.start_time ?? settings.startTime;
-          settings.endTime   = settingsData.end_time   ?? settings.endTime;
+          settings.goal         = settingsData.goal         ?? settings.goal;
+          settings.startTime    = settingsData.start_time   ?? settings.startTime;
+          settings.endTime      = settingsData.end_time     ?? settings.endTime;
+          settings.winstreak    = settingsData.winstreak    ?? 0;
+          settings.lastGoalDate = settingsData.last_goal_date ?? null;
         }
 
         // Load today's logs
@@ -378,10 +409,12 @@
       if (!supabaseClient) return;
       try {
         await supabaseClient.from('water_settings').upsert({
-          id:         1,
-          goal:       settings.goal,
-          start_time: settings.startTime,
-          end_time:   settings.endTime
+          id:             1,
+          goal:           settings.goal,
+          start_time:     settings.startTime,
+          end_time:       settings.endTime,
+          winstreak:      settings.winstreak,
+          last_goal_date: settings.lastGoalDate
         });
       } catch(e) {
         console.error('Supabase save settings error:', e);
@@ -531,6 +564,7 @@
 
       document.getElementById('custom-total-ml').innerHTML = `${customTotal} <span class="text-sm text-zinc-500">ml</span>`;
 
+      checkWinstreak();
       renderLogList();
       renderChart();
       checkReminder();
@@ -601,7 +635,88 @@
       });
     }
 
-    // ─── Kaffee / Milch Modal ────────────────────────────────────────────────────
+    // ─── Winstreak ────────────────────────────────────────────────────────────────
+    function getTodayDateStr() {
+      return new Date().toISOString().split('T')[0];
+    }
+
+    function getYesterdayDateStr() {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      return d.toISOString().split('T')[0];
+    }
+
+    async function checkWinstreak() {
+      const today     = getTodayDateStr();
+      const yesterday = getYesterdayDateStr();
+      const total     = getTodayTotal();
+      const goalMet   = total >= settings.goal;
+
+      // Check if yesterday's goal was missed → reset streak
+      if (settings.lastGoalDate && settings.lastGoalDate !== today && settings.lastGoalDate !== yesterday) {
+        // Last goal was more than 1 day ago → streak broken
+        settings.winstreak = 0;
+        saveToLocal();
+        await saveSettingsToSupabase();
+      }
+
+      // Goal just reached today for the first time this session
+      if (goalMet && !goalReachedToday) {
+        goalReachedToday = true;
+
+        if (settings.lastGoalDate !== today) {
+          // Increment streak
+          if (settings.lastGoalDate === yesterday) {
+            settings.winstreak += 1;
+          } else {
+            settings.winstreak = 1; // fresh start
+          }
+          settings.lastGoalDate = today;
+          saveToLocal();
+          await saveSettingsToSupabase();
+          showSuccessModal();
+        }
+      }
+
+      // Update badge
+      const badge = document.getElementById('winstreak-display');
+      if (settings.winstreak === 0) {
+        badge.textContent = '🔥 0 Tage';
+        badge.className = 'text-sm font-bold text-zinc-500';
+      } else {
+        badge.textContent = `🔥 ${settings.winstreak} Tag${settings.winstreak === 1 ? '' : 'e'}`;
+        badge.className = 'text-sm font-bold text-orange-400';
+      }
+    }
+
+    function showSuccessModal() {
+      const streak = settings.winstreak;
+      const modal  = document.getElementById('success-modal');
+
+      // Pick emoji and message based on streak
+      let emoji, title, subtitle;
+      if (streak >= 30) { emoji = '👑'; title = 'Absolute Legende!'; }
+      else if (streak >= 14) { emoji = '🏆'; title = 'Unaufhaltbar!'; }
+      else if (streak >= 7)  { emoji = '⚡'; title = 'Eine Woche durch!'; }
+      else if (streak >= 3)  { emoji = '🔥'; title = 'Du bist auf Kurs!'; }
+      else if (streak === 1) { emoji = '💧'; title = 'Tagesziel erreicht!'; }
+      else                   { emoji = '🎉'; title = 'Wieder im Rhythmus!'; }
+
+      subtitle = streak > 1
+        ? `${streak} Tage in Folge das Ziel erreicht. Stark!`
+        : 'Heute hast du dein Ziel geschafft. Bleib dran!';
+
+      document.getElementById('success-emoji').textContent      = emoji;
+      document.getElementById('success-title').textContent      = title;
+      document.getElementById('success-subtitle').textContent   = subtitle;
+      document.getElementById('success-streak-count').textContent = streak;
+
+      modal.style.display = 'flex';
+    }
+
+    function closeSuccessModal() {
+      document.getElementById('success-modal').style.display = 'none';
+    }
     function addKaffee() {
       document.getElementById('milk-modal').classList.add('open');
     }
