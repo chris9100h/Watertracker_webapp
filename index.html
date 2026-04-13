@@ -682,8 +682,10 @@
 
       // Breakdown: group by base name (strip milch suffix for grouping key)
       const breakdown = {};
+      let totalMilchMl = 0;
       otherLogs.forEach(e => {
-        // Use base name without "(+Xml Milch)" for grouping display
+        const milchMatch = e.name ? e.name.match(/\(\+(\d+)ml Milch\)/) : null;
+        if (milchMatch) totalMilchMl += parseInt(milchMatch[1]);
         const baseName = e.name ? e.name.replace(/ \(\+\d+ml Milch\)/, '') : 'Unbekannt';
         if (!breakdown[baseName]) breakdown[baseName] = { count: 0 };
         breakdown[baseName].count++;
@@ -695,7 +697,7 @@
       };
 
       const breakdownEl = document.getElementById('other-drinks-breakdown');
-      const today = new Date().toISOString().split('T')[0];
+      const today = new Date().toLocaleDateString('sv-SE');
       const bottleCount = (settings.bottlesDate === today) ? (settings.bottlesToday || 0) : 0;
 
       if (Object.keys(breakdown).length === 0 && bottleCount === 0) {
@@ -703,17 +705,25 @@
       } else {
         let html = '';
         if (bottleCount > 0) {
-          html += `<span class="inline-flex items-center gap-1.5 bg-zinc-800 rounded-xl px-3 py-1.5 mr-2 mb-2 font-medium">
-            🍶 Flasche <span class="text-orange-400 font-bold ml-1">${bottleCount}×</span>
-          </span>`;
+          html += `<div class="flex justify-between items-center py-1">
+            <span>🍶 Flasche</span>
+            <span class="text-orange-400 font-bold">${bottleCount}×</span>
+          </div>`;
         }
         html += Object.entries(breakdown)
           .map(([name, d]) => {
             const emoji = drinkEmojis[name] || '🥤';
-            return `<span class="inline-flex items-center gap-1.5 bg-zinc-800 rounded-xl px-3 py-1.5 mr-2 mb-2 font-medium">
-              ${emoji} ${name} <span class="text-orange-400 font-bold ml-1">${d.count}×</span>
-            </span>`;
+            return `<div class="flex justify-between items-center py-1">
+              <span>${emoji} ${name}</span>
+              <span class="text-orange-400 font-bold">${d.count}×</span>
+            </div>`;
           }).join('');
+        if (totalMilchMl > 0) {
+          html += `<div class="border-t border-zinc-700 mt-1 pt-2 flex justify-between items-center py-1">
+            <span>🥛 Milch</span>
+            <span class="text-orange-400 font-bold">${totalMilchMl} ml</span>
+          </div>`;
+        }
         breakdownEl.innerHTML = html;
       }
 
@@ -1125,9 +1135,11 @@
 
       // Drink breakdown (other category, group by base name)
       const drinkCounts = {};
+      let statsMilchMl = 0;
       allLogs.filter(l => l.category === 'other').forEach(l => {
+        const milchMatch = l.name ? l.name.match(/\(\+(\d+)ml Milch\)/) : null;
+        if (milchMatch) statsMilchMl += parseInt(milchMatch[1]);
         const base = (l.name || 'Unbekannt').replace(/ \(\+\d+ml Milch\)/, '').replace(/ \(.*\)/, '');
-        // Group all coffee variants under Kaffee
         const key = ['Espresso','Double Espresso','Schwarz','Barista','Gran Lungo','TGW','Mug'].includes(base) ? 'Kaffee' : base;
         drinkCounts[key] = (drinkCounts[key] || 0) + 1;
       });
@@ -1192,14 +1204,18 @@
         <div>
           <p class="text-zinc-400 text-xs uppercase tracking-widest mb-3">Andere Getränke</p>
           <div class="bg-zinc-800 rounded-2xl p-4 space-y-2">
-            ${Object.keys(drinkCounts).length === 0
+            ${Object.keys(drinkCounts).length === 0 && statsMilchMl === 0
               ? '<p class="text-zinc-500 text-sm italic">Keine Einträge</p>'
               : Object.entries(drinkCounts).sort((a,b) => b[1]-a[1]).map(([name, count]) =>
                 `<div class="flex justify-between items-center">
                   <span class="text-sm">${DRINK_EMOJIS[name] || '🥤'} ${name}</span>
                   <span class="font-bold text-orange-400">${count}×</span>
                 </div>`
-              ).join('')
+              ).join('') + (statsMilchMl > 0 ? `
+                <div class="flex justify-between items-center border-t border-zinc-700 pt-2 mt-2">
+                  <span class="text-sm">🥛 Milch gesamt</span>
+                  <span class="font-bold text-orange-400">${statsMilchMl} ml</span>
+                </div>` : '')
             }
           </div>
         </div>
