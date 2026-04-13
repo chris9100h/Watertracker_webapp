@@ -324,7 +324,8 @@
             id: row.id,
             ts: new Date(row.ts).getTime(),
             amount: row.amount,
-            name: row.name
+            name: row.name,
+            category: row.category
           }));
         }
 
@@ -345,10 +346,11 @@
         const { data, error } = await supabaseClient
           .from('water_logs')
           .insert({
-            ts:     new Date(entry.ts).toISOString(),
-            amount: entry.amount,
-            name:   entry.name || null,
-            date:   today
+            ts:       new Date(entry.ts).toISOString(),
+            amount:   entry.amount,
+            name:     entry.name || null,
+            date:     today,
+            category: entry.category || null
           })
           .select()
           .single();
@@ -404,6 +406,7 @@
     function saveToLocal() {
       localStorage.setItem(STORAGE_SETTINGS, JSON.stringify(settings));
       localStorage.setItem(STORAGE_LOGS, JSON.stringify(logs));
+      console.log('saveToLocal:', JSON.stringify(logs).substring(0, 300));
     }
 
     // ─── Pushover ────────────────────────────────────────────────────────────────
@@ -670,9 +673,8 @@
     // ─── Init ─────────────────────────────────────────────────────────────────────
     window.onload = async () => {
       loadFromLocal();
-      initSupabase();
 
-      // Always restore hardcoded keys (in case localStorage overwrote them)
+      // Always use hardcoded keys
       settings.supabaseUrl   = SUPABASE_URL;
       settings.supabaseKey   = SUPABASE_KEY;
       settings.pushoverToken = PUSHOVER_TOKEN;
@@ -681,12 +683,12 @@
 
       const loaded = await loadFromSupabase();
       if (loaded) {
-        saveToLocal(); // sync local cache
+        saveToLocal();
         showToast('☁️ Daten aus Supabase geladen');
       }
 
       updateUI();
-      setInterval(checkReminder, 120_000); // check every 2 minutes
+      setInterval(checkReminder, 120_000);
     };
   </script>
 </body>
