@@ -801,7 +801,7 @@
 
       // Find where "now" sits between labels (interpolated)
       const now = new Date();
-      const nowDecimal = now.getHours() + now.getMinutes() / 60;
+      const nowDecimal   = now.getHours() + now.getMinutes() / 60;
       const startDecimal = startHour;
       const endDecimal   = endHour;
       const nowFraction  = Math.max(0, Math.min(1, (nowDecimal - startDecimal) / (endDecimal - startDecimal)));
@@ -832,14 +832,29 @@
         ]},
         options: {
           responsive: true, maintainAspectRatio: false,
+          animation: { onComplete: () => drawNowLine(chartInstance, nowFraction) },
           plugins: { legend: { display: true, position: 'top', labels: { color: '#d1d5db' }}},
           scales: {
             y: { beginAtZero: true, max: Math.ceil(settings.goal * 1.2 / 500)*500, grid: { color: '#27272a' }, ticks: { color: '#71717a' }},
             x: { grid: { color: '#27272a' }, ticks: { color: '#71717a', maxTicksLimit: 8 }}
           }
-        },
-        plugins: [nowLinePlugin]
+        }
       });
+    }
+
+    function drawNowLine(chart, fraction) {
+      const { ctx, chartArea } = chart;
+      if (!chartArea) return;
+      const x = chartArea.left + fraction * (chartArea.right - chartArea.left);
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(x, chartArea.top);
+      ctx.lineTo(x, chartArea.bottom);
+      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.stroke();
+      ctx.restore();
     }
 
     // ─── Winstreak ────────────────────────────────────────────────────────────────
