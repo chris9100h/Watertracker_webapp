@@ -19,6 +19,10 @@
       from { transform: scale(0.7); opacity: 0; }
       to   { transform: scale(1);   opacity: 1; }
     }
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to   { transform: translateY(0); }
+    }
 
     /* Notification toast */
     #toast {
@@ -153,20 +157,20 @@
       <div class="mb-8">
         <p class="text-zinc-400 text-sm mb-3">Wassermengen</p>
         <div class="grid grid-cols-4 gap-3 mb-6">
-          <button onclick="quickAdd(250)"  class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">250 ml</button>
-          <button onclick="quickAdd(500)"  class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">500 ml</button>
-          <button onclick="quickAdd(1000)" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">1000 ml</button>
-          <button onclick="quickAdd(1500)" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">1500 ml</button>
+          <button onclick="askConfirm(250, null, null)"  class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">250 ml</button>
+          <button onclick="askConfirm(500, null, null)"  class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">500 ml</button>
+          <button onclick="askConfirm(1000, null, null)" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">1000 ml</button>
+          <button onclick="askConfirm(1500, null, null)" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">1500 ml</button>
         </div>
 
         <p class="text-zinc-400 text-sm mb-3">Andere Getränke</p>
         <div class="grid grid-cols-2 gap-3">
           <button onclick="addKaffee()"       class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">☕ Kaffee<br><span class="text-xs text-zinc-500">(230+ ml)</span></button>
-          <button onclick="quickAdd(250, 'Energy Drink', 'other')" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">⚡ Energy Drink<br><span class="text-xs text-zinc-500">(250 ml)</span></button>
-          <button onclick="quickAdd(300, 'Whey Shake', 'other')"   class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🥤 Whey Shake<br><span class="text-xs text-zinc-500">(300 ml)</span></button>
-          <button onclick="quickAdd(500, '500ml Glas', 'other')"   class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🥛 500 ml Glas<br><span class="text-xs text-zinc-500">(500 ml)</span></button>
-          <button onclick="quickAdd(650, '650ml Glas', 'other')"   class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🥛 650 ml Glas<br><span class="text-xs text-zinc-500">(650 ml)</span></button>
-          <button onclick="quickAdd(1700, 'Barbarian Jug', 'other')" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🏺 Barbarian Jug<br><span class="text-xs text-zinc-500">(1700 ml)</span></button>
+          <button onclick="askConfirm(250, 'Energy Drink', 'other')" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">⚡ Energy Drink<br><span class="text-xs text-zinc-500">(250 ml)</span></button>
+          <button onclick="askConfirm(300, 'Whey Shake', 'other')"   class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🥤 Whey Shake<br><span class="text-xs text-zinc-500">(300 ml)</span></button>
+          <button onclick="askConfirm(500, '500ml Glas', 'other')"   class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🥛 500 ml Glas<br><span class="text-xs text-zinc-500">(500 ml)</span></button>
+          <button onclick="askConfirm(650, '650ml Glas', 'other')"   class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🥛 650 ml Glas<br><span class="text-xs text-zinc-500">(650 ml)</span></button>
+          <button onclick="askConfirm(1700, 'Barbarian Jug', 'other')" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🏺 Barbarian Jug<br><span class="text-xs text-zinc-500">(1700 ml)</span></button>
         </div>
       </div>
 
@@ -243,6 +247,18 @@
       <button onclick="closeSuccessModal()" class="bg-zinc-700 hover:bg-zinc-600 px-8 py-3 rounded-2xl font-medium transition">
         Weiter so! 💪
       </button>
+    </div>
+  </div>
+
+  <!-- Bestätigungs-Modal -->
+  <div id="confirm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:300;align-items:flex-end;justify-content:center;">
+    <div class="bg-zinc-900 rounded-t-3xl w-full p-6 border-t border-orange-800" style="animation: slideUp 0.25s ease-out">
+      <p class="text-zinc-400 text-xs uppercase tracking-widest mb-1">Bestätigen</p>
+      <h3 id="confirm-label" class="text-2xl font-bold mb-6">+250 ml</h3>
+      <div class="grid grid-cols-2 gap-3">
+        <button onclick="confirmAdd(false)" class="bg-zinc-700 hover:bg-zinc-600 py-4 rounded-2xl font-semibold transition active:scale-95">✕ Abbrechen</button>
+        <button onclick="confirmAdd(true)"  class="bg-orange-600 hover:bg-orange-500 py-4 rounded-2xl font-semibold transition active:scale-95">✓ Hinzufügen</button>
+      </div>
     </div>
   </div>
 
@@ -743,7 +759,27 @@
       document.getElementById('milk-modal').classList.remove('open');
       const total = 230 + milchMl;
       const label = milchMl > 0 ? `Kaffee (+${milchMl}ml Milch)` : 'Kaffee';
-      quickAdd(total, label, 'other');
+      askConfirm(total, label, 'other');
+    }
+
+    // ─── Bestätigungs-Modal ───────────────────────────────────────────────────────
+    let _pendingAmount = null, _pendingName = null, _pendingCategory = null;
+
+    function askConfirm(amount, name, category) {
+      _pendingAmount   = amount;
+      _pendingName     = name;
+      _pendingCategory = category;
+      const label = name ? `+${amount} ml (${name})` : `+${amount} ml`;
+      document.getElementById('confirm-label').textContent = label;
+      document.getElementById('confirm-modal').style.display = 'flex';
+    }
+
+    function confirmAdd(ok) {
+      document.getElementById('confirm-modal').style.display = 'none';
+      if (ok && _pendingAmount !== null) {
+        quickAdd(_pendingAmount, _pendingName, _pendingCategory);
+      }
+      _pendingAmount = _pendingName = _pendingCategory = null;
     }
 
     // ─── Actions ─────────────────────────────────────────────────────────────────
