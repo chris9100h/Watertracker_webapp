@@ -799,35 +799,46 @@
         return logs.filter(l => l.ts <= cutoff.getTime()).reduce((sum, l) => sum + l.amount, 0);
       });
 
-      // Current time vertical line – find closest label index
+      // Find where "now" sits between labels (interpolated)
       const now = new Date();
       const nowDecimal = now.getHours() + now.getMinutes() / 60;
-      const yMax = Math.ceil(settings.goal * 1.2 / 500) * 500;
-      let nowIndex = -1;
-      let minDiff = Infinity;
-      labels.forEach((label, i) => {
-        const h = parseInt(label.split(':')[0]);
-        const diff = Math.abs(h - nowDecimal);
-        if (diff < minDiff) { minDiff = diff; nowIndex = i; }
-      });
-      const nowLineData = labels.map((_, i) => i === nowIndex ? yMax : null);
+      const startDecimal = startHour;
+      const endDecimal   = endHour;
+      const nowFraction  = Math.max(0, Math.min(1, (nowDecimal - startDecimal) / (endDecimal - startDecimal)));
+
+      const nowLinePlugin = {
+        id: 'nowLine',
+        afterDraw(chart) {
+          const { ctx, chartArea: { top, bottom, left, right } } = chart;
+          const x = left + nowFraction * (right - left);
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(x, top);
+          ctx.lineTo(x, bottom);
+          ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([4, 4]);
+          ctx.stroke();
+          ctx.restore();
+        }
+      };
 
       if (chartInstance) chartInstance.destroy();
       chartInstance = new Chart(ctx, {
         type: 'line',
         data: { labels, datasets: [
           { label: 'Soll-Linie', data: expectedData, borderColor: '#f97316', borderDash: [5,3], borderWidth: 3, pointRadius: 0 },
-          { label: 'Getrunken',  data: drunkData,    borderColor: '#fbbf24', tension: 0.3, borderWidth: 4, pointRadius: 3, pointBackgroundColor: '#fcd34d' },
-          { label: 'Jetzt',      data: nowLineData,  borderColor: '#ffffff', borderWidth: 2, borderDash: [3,3], pointRadius: 0, spanGaps: false, fill: false }
+          { label: 'Getrunken',  data: drunkData,    borderColor: '#fbbf24', tension: 0.3, borderWidth: 4, pointRadius: 3, pointBackgroundColor: '#fcd34d' }
         ]},
         options: {
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: true, position: 'top', labels: { color: '#d1d5db', filter: item => item.text !== 'Jetzt' }}},
+          plugins: { legend: { display: true, position: 'top', labels: { color: '#d1d5db' }}},
           scales: {
-            y: { beginAtZero: true, max: yMax, grid: { color: '#27272a' }, ticks: { color: '#71717a' }},
+            y: { beginAtZero: true, max: Math.ceil(settings.goal * 1.2 / 500)*500, grid: { color: '#27272a' }, ticks: { color: '#71717a' }},
             x: { grid: { color: '#27272a' }, ticks: { color: '#71717a', maxTicksLimit: 8 }}
           }
-        }
+        },
+        plugins: [nowLinePlugin]
       });
     }
 
