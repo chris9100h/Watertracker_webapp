@@ -165,7 +165,7 @@
 
         <p class="text-zinc-400 text-sm mb-3">Andere Getränke</p>
         <div class="grid grid-cols-2 gap-3">
-          <button onclick="addKaffee()"       class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">☕ Kaffee<br><span class="text-xs text-zinc-500">(230+ ml)</span></button>
+          <button onclick="addKaffee()"       class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">☕ Kaffee<br><span class="text-xs text-zinc-500">(40–230+ ml)</span></button>
           <button onclick="askConfirm(250, 'Energy Drink', 'other')" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">⚡ Energy Drink<br><span class="text-xs text-zinc-500">(250 ml)</span></button>
           <button onclick="askConfirm(300, 'Whey Shake', 'other')"   class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🥤 Whey Shake<br><span class="text-xs text-zinc-500">(300 ml)</span></button>
           <button onclick="askConfirm(500, '500ml Glas', 'other')"   class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🥛 500 ml Glas<br><span class="text-xs text-zinc-500">(500 ml)</span></button>
@@ -276,16 +276,39 @@
   </div>
   <div id="milk-modal">
     <div class="bg-zinc-900 rounded-3xl p-6 w-full max-w-sm border border-orange-800">
-      <h3 class="text-xl font-semibold mb-1">☕ Kaffee mit Milch?</h3>
-      <p class="text-zinc-400 text-sm mb-5">Basis: 230 ml · Wie viel Milch?</p>
-      <div class="grid grid-cols-3 gap-3 mb-3">
-        <button class="milk-option" onclick="confirmKaffee(20)">20 ml</button>
-        <button class="milk-option" onclick="confirmKaffee(40)">40 ml</button>
-        <button class="milk-option" onclick="confirmKaffee(60)">60 ml</button>
-        <button class="milk-option" onclick="confirmKaffee(80)">80 ml</button>
-        <button class="milk-option" onclick="confirmKaffee(100)">100 ml</button>
-        <button class="milk-option no" onclick="confirmKaffee(0)">Keine Milch</button>
+
+      <!-- Schritt 1: Kaffeemenge -->
+      <div id="coffee-step-size">
+        <h3 class="text-xl font-semibold mb-1">☕ Welcher Kaffee?</h3>
+        <p class="text-zinc-400 text-sm mb-5">Kaffeemenge wählen</p>
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <button class="milk-option" onclick="selectCoffeeSize(40)">Espresso<br><span class="text-xs text-zinc-400">40 ml</span></button>
+          <button class="milk-option" onclick="selectCoffeeSize(80)">Double Espresso<br><span class="text-xs text-zinc-400">80 ml</span></button>
+          <button class="milk-option" onclick="selectCoffeeSize(100)">Schwarz<br><span class="text-xs text-zinc-400">100 ml</span></button>
+          <button class="milk-option" onclick="selectCoffeeSize(120)">Barista<br><span class="text-xs text-zinc-400">120 ml</span></button>
+          <button class="milk-option" onclick="selectCoffeeSize(150)">Gran Lungo<br><span class="text-xs text-zinc-400">150 ml</span></button>
+          <button class="milk-option" onclick="selectCoffeeSize(200)">TGW<br><span class="text-xs text-zinc-400">200 ml</span></button>
+        </div>
+        <button class="milk-option w-full" style="padding: 16px 0; font-size: 16px;" onclick="selectCoffeeSize(230)">
+          ☕ Mug<br><span class="text-xs text-zinc-400">230 ml</span>
+        </button>
       </div>
+
+      <!-- Schritt 2: Milch -->
+      <div id="coffee-step-milk" class="hidden">
+        <h3 class="text-xl font-semibold mb-1">🥛 Milch dazu?</h3>
+        <p id="milk-step-subtitle" class="text-zinc-400 text-sm mb-5">Basis: 230 ml · Wie viel Milch?</p>
+        <div class="grid grid-cols-3 gap-3 mb-3">
+          <button class="milk-option" onclick="confirmKaffee(20)">20 ml</button>
+          <button class="milk-option" onclick="confirmKaffee(40)">40 ml</button>
+          <button class="milk-option" onclick="confirmKaffee(60)">60 ml</button>
+          <button class="milk-option" onclick="confirmKaffee(80)">80 ml</button>
+          <button class="milk-option" onclick="confirmKaffee(100)">100 ml</button>
+          <button class="milk-option no" onclick="confirmKaffee(0)">Keine Milch</button>
+        </div>
+        <button onclick="backToCoffeeSize()" class="w-full text-zinc-500 text-sm mt-1 py-2">← Zurück</button>
+      </div>
+
     </div>
   </div>
 
@@ -751,14 +774,34 @@
       }
     }
 
+    let selectedCoffeeSize = 230;
+
     function addKaffee() {
+      // Reset to step 1
+      document.getElementById('coffee-step-size').classList.remove('hidden');
+      document.getElementById('coffee-step-milk').classList.add('hidden');
       document.getElementById('milk-modal').classList.add('open');
+    }
+
+    function selectCoffeeSize(ml) {
+      selectedCoffeeSize = ml;
+      const names = {40:'Espresso',80:'Double Espresso',100:'Schwarz',120:'Barista',150:'Gran Lungo',200:'TGW',230:'Mug'};
+      document.getElementById('milk-step-subtitle').textContent = `${names[ml] || ml + ' ml'} (${ml} ml) · Wie viel Milch?`;
+      document.getElementById('coffee-step-size').classList.add('hidden');
+      document.getElementById('coffee-step-milk').classList.remove('hidden');
+    }
+
+    function backToCoffeeSize() {
+      document.getElementById('coffee-step-milk').classList.add('hidden');
+      document.getElementById('coffee-step-size').classList.remove('hidden');
     }
 
     function confirmKaffee(milchMl) {
       document.getElementById('milk-modal').classList.remove('open');
-      const total = 230 + milchMl;
-      const label = milchMl > 0 ? `Kaffee (+${milchMl}ml Milch)` : 'Kaffee';
+      const total = selectedCoffeeSize + milchMl;
+      const names = {40:'Espresso',80:'Double Espresso',100:'Schwarz',120:'Barista',150:'Gran Lungo',200:'TGW',230:'Mug'};
+      const coffeeName = names[selectedCoffeeSize] || `Kaffee ${selectedCoffeeSize}ml`;
+      const label = milchMl > 0 ? `${coffeeName} (+${milchMl}ml Milch)` : coffeeName;
       askConfirm(total, label, 'other');
     }
 
