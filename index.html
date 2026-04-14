@@ -88,15 +88,18 @@
   <div class="max-w-md mx-auto bg-zinc-950 min-h-screen">
 
     <!-- Header -->
-    <div class="bg-orange-600 p-4 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <div class="w-9 h-9 bg-white rounded-2xl flex items-center justify-center text-orange-600 text-2xl">💧</div>
-        <h1 class="text-2xl font-semibold tracking-tight">Wasser Tracker</h1>
+    <div class="bg-zinc-950 px-5 pt-5 pb-4 flex items-center justify-between border-b-2 border-orange-600">
+      <div class="flex items-start gap-3">
+        <div class="w-1 self-stretch bg-orange-500 rounded-full"></div>
+        <div>
+          <h1 class="text-2xl font-bold tracking-widest uppercase text-white leading-tight">Wasser Tracker</h1>
+          <p class="text-zinc-500 text-xs tracking-widest mt-0.5">Tägliches Wasser Tracking</p>
+        </div>
       </div>
-      <div class="flex items-center gap-2">
-        <span id="sync-indicator" class="text-xs px-2 py-1 rounded-full bg-orange-700 hidden">⏳ Sync</span>
-        <button onclick="openStats()" class="text-3xl">📊</button>
-        <button onclick="toggleSettings()" class="text-3xl">⚙️</button>
+      <div class="flex items-center gap-3">
+        <span id="sync-indicator" class="text-xs px-2 py-1 rounded-full bg-zinc-800 hidden">⏳</span>
+        <button onclick="openStats()" class="text-2xl">📊</button>
+        <button onclick="toggleSettings()" class="text-2xl">⚙️</button>
       </div>
     </div>
 
