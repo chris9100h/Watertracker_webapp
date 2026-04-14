@@ -98,6 +98,26 @@
       </div>
       <div class="flex items-center gap-3">
         <span id="sync-indicator" class="text-xs px-2 py-1 rounded-full bg-zinc-800 hidden">⏳</span>
+        <!-- App Switcher -->
+        <div class="relative">
+          <button onclick="toggleAppSwitcher()" class="text-2xl">⠿</button>
+          <div id="app-switcher" class="hidden absolute right-0 top-10 bg-zinc-900 border border-zinc-700 rounded-2xl p-2 z-50 w-44 shadow-xl">
+            <a href="https://chris9100h.github.io/Weight-Tracker/" class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-800 transition">
+              <span class="text-xl">⚖️</span>
+              <span class="text-sm font-medium text-zinc-300">Weight Tracker</span>
+            </a>
+            <a href="https://chris9100h.github.io/Glucose-Log/" class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-800 transition">
+              <span class="text-xl">🩸</span>
+              <span class="text-sm font-medium text-zinc-300">Glucose Log</span>
+            </a>
+            <div class="border-t border-zinc-700 mt-1 pt-1">
+              <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-zinc-800">
+                <span class="text-xl">💧</span>
+                <span class="text-sm font-medium text-orange-400">Wasser Tracker</span>
+              </div>
+            </div>
+          </div>
+        </div>
         <button onclick="openStats()" class="text-2xl">📊</button>
         <button onclick="toggleSettings()" class="text-2xl">⚙️</button>
       </div>
@@ -997,6 +1017,20 @@
       const label = milchMl > 0 ? `${coffeeName} + ${milchMl}ml Milch` : coffeeName;
       askConfirm(total, label, 'other');
     }
+
+    // ─── App Switcher ─────────────────────────────────────────────────────────────
+    function toggleAppSwitcher() {
+      const el = document.getElementById('app-switcher');
+      el.classList.toggle('hidden');
+    }
+
+    // Close when clicking outside
+    document.addEventListener('click', e => {
+      const switcher = document.getElementById('app-switcher');
+      if (!switcher.classList.contains('hidden') && !e.target.closest('.relative')) {
+        switcher.classList.add('hidden');
+      }
+    });
 
     // ─── Log List Toggle ──────────────────────────────────────────────────────────
     function toggleLogList() {
