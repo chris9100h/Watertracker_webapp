@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="de">
 <head>
   <meta charset="UTF-8">
@@ -17,255 +16,253 @@
     .progress-orange { background: linear-gradient(90deg, #f97316, #fb923c); }
     #chart-container { position: relative; width: 100%; height: 220px; }
 
-@keyframes popIn {
-  from { transform: scale(0.7); opacity: 0; }
-  to   { transform: scale(1);   opacity: 1; }
-}
-@keyframes slideUp {
-  from { transform: translateY(100%); }
-  to   { transform: translateY(0); }
-}
+    @keyframes popIn {
+      from { transform: scale(0.7); opacity: 0; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to   { transform: translateY(0); }
+    }
 
-/* Notification toast */
-#toast {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%) translateY(100px);
-  background: #18181b;
-  border: 1px solid #f97316;
-  color: white;
-  padding: 12px 20px;
-  border-radius: 16px;
-  font-size: 14px;
-  z-index: 9999;
-  transition: transform 0.3s ease;
-  white-space: nowrap;
-  max-width: 90vw;
-}
-#toast.show { transform: translateX(-50%) translateY(0); }
+    /* Notification toast */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: #18181b;
+      border: 1px solid #f97316;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 16px;
+      font-size: 14px;
+      z-index: 9999;
+      transition: transform 0.3s ease;
+      white-space: nowrap;
+      max-width: 90vw;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
 
-/* Config badge */
-.config-badge {
-  display: inline-block;
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  margin-left: 6px;
-  vertical-align: middle;
-}
-.config-badge.ok { background: #22c55e; }
-.config-badge.missing { background: #ef4444; }
+    /* Config badge */
+    .config-badge {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+    .config-badge.ok { background: #22c55e; }
+    .config-badge.missing { background: #ef4444; }
 
-/* Milk modal */
-#milk-modal {
-  display: none;
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.85);
-  z-index: 100;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-#milk-modal.open { display: flex; }
-.milk-option {
-  background: #27272a;
-  border: 2px solid #3f3f46;
-  border-radius: 16px;
-  padding: 14px 0;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-  text-align: center;
-}
-.milk-option:hover { border-color: #f97316; background: #3f3f46; }
-.milk-option.no { border-color: #52525b; color: #a1a1aa; }
-.milk-option.no:hover { border-color: #ef4444; color: #fca5a5; background: #27272a; }
-.stats-tab { background: #27272a; color: #a1a1aa; }
-.stats-tab.active-tab { background: #ea580c; color: white; }
-
+    /* Milk modal */
+    #milk-modal {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    #milk-modal.open { display: flex; }
+    .milk-option {
+      background: #27272a;
+      border: 2px solid #3f3f46;
+      border-radius: 16px;
+      padding: 14px 0;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: center;
+    }
+    .milk-option:hover { border-color: #f97316; background: #3f3f46; }
+    .milk-option.no { border-color: #52525b; color: #a1a1aa; }
+    .milk-option.no:hover { border-color: #ef4444; color: #fca5a5; background: #27272a; }
+    .stats-tab { background: #27272a; color: #a1a1aa; }
+    .stats-tab.active-tab { background: #ea580c; color: white; }
   </style>
 </head>
 <body class="bg-zinc-950 text-white min-h-screen">
   <div class="max-w-md mx-auto bg-zinc-950 min-h-screen">
 
-<!-- Header -->
-<div class="bg-zinc-950 px-5 pt-5 pb-4 flex items-center justify-between border-b-2 border-orange-600">
-  <div class="flex items-start gap-3">
-    <div class="w-1 self-stretch bg-orange-500 rounded-full"></div>
-    <div>
-      <h1 class="text-2xl font-bold tracking-widest uppercase text-white leading-tight">Wasser Tracker</h1>
-      <p class="text-zinc-500 text-xs tracking-widest mt-0.5">Tägliches Wasser Tracking</p>
+    <!-- Header -->
+    <div class="bg-zinc-950 px-5 pt-5 pb-4 flex items-center justify-between border-b-2 border-orange-600">
+      <div class="flex items-start gap-3">
+        <div class="w-1 self-stretch bg-orange-500 rounded-full"></div>
+        <div>
+          <h1 class="text-2xl font-bold tracking-widest uppercase text-white leading-tight">Wasser Tracker</h1>
+          <p class="text-zinc-500 text-xs tracking-widest mt-0.5">Tägliches Wasser Tracking</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <span id="sync-indicator" class="text-xs px-2 py-1 rounded-full bg-zinc-800 hidden">⏳</span>
+        <!-- App Switcher -->
+        <div class="relative">
+          <button onclick="toggleAppSwitcher()" class="text-2xl">⠿</button>
+          <div id="app-switcher" class="hidden absolute right-0 top-10 bg-zinc-900 border border-zinc-700 rounded-2xl p-2 z-50 w-44 shadow-xl">
+            <a href="https://chris9100h.github.io/Weight-Tracker/" class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-800 transition">
+              <span class="text-xl">⚖️</span>
+              <span class="text-sm font-medium text-zinc-300">Weight Tracker</span>
+            </a>
+            <a href="https://chris9100h.github.io/Glucose-Log/" class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-800 transition">
+              <span class="text-xl">🩸</span>
+              <span class="text-sm font-medium text-zinc-300">Glucose Log</span>
+            </a>
+            <div class="border-t border-zinc-700 mt-1 pt-1">
+              <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-zinc-800">
+                <span class="text-xl">💧</span>
+                <span class="text-sm font-medium text-orange-400">Wasser Tracker</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button onclick="openStats()" class="text-2xl">📊</button>
+        <button onclick="toggleSettings()" class="text-2xl">⚙️</button>
+      </div>
     </div>
-  </div>
-  <div class="flex items-center gap-3">
-    <span id="sync-indicator" class="text-xs px-2 py-1 rounded-full bg-zinc-800 hidden">⏳</span>
-    <!-- App Switcher -->
-    <div class="relative">
-      <button onclick="toggleAppSwitcher()" class="text-2xl">⠿</button>
-      <div id="app-switcher" class="hidden absolute right-0 top-10 bg-zinc-900 border border-zinc-700 rounded-2xl p-2 z-50 w-44 shadow-xl">
-        <a href="https://chris9100h.github.io/Weight-Tracker/" class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-800 transition">
-          <span class="text-xl">⚖️</span>
-          <span class="text-sm font-medium text-zinc-300">Weight Tracker</span>
-        </a>
-        <a href="https://chris9100h.github.io/Glucose-Log/" class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-800 transition">
-          <span class="text-xl">🩸</span>
-          <span class="text-sm font-medium text-zinc-300">Glucose Log</span>
-        </a>
-        <div class="border-t border-zinc-700 mt-1 pt-1">
-          <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-zinc-800">
-            <span class="text-xl">💧</span>
-            <span class="text-sm font-medium text-orange-400">Wasser Tracker</span>
+
+    <div class="p-5">
+      <!-- Aktueller Stand -->
+      <div class="bg-zinc-900 rounded-3xl p-6 mb-6 border border-orange-900">
+        <div class="flex justify-between items-baseline mb-3">
+          <div>
+            <p class="text-zinc-400 text-sm">Heute getrunken</p>
+            <p id="drunk-amount" class="text-5xl font-bold">0 <span class="text-3xl text-zinc-500">ml</span></p>
+          </div>
+          <div class="text-right">
+            <p id="goal-text" class="text-zinc-400 text-sm">von 2000 ml</p>
+            <p id="progress-percent" class="text-5xl font-bold orange-accent">0%</p>
+          </div>
+        </div>
+        <!-- Winstreak Badge -->
+        <div id="winstreak-badge" class="flex items-center justify-between mb-2">
+          <span class="text-xs text-zinc-500">Winstreak</span>
+          <span id="winstreak-display" class="text-sm font-bold text-orange-400">🔥 0 Tage</span>
+        </div>
+        <div class="h-4 bg-zinc-800 rounded-2xl overflow-hidden">
+          <div id="progress-bar" class="h-full progress-orange rounded-2xl transition-all duration-500" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- Reminder -->
+      <div id="reminder-banner" class="hidden bg-orange-600 text-black rounded-3xl p-5 mb-6 flex gap-4 items-center">
+        <span class="text-4xl">⚠️</span>
+        <div>
+          <p class="font-semibold text-lg">Du liegst zurück!</p>
+          <p id="reminder-subtext" class="text-sm">Trink jetzt mindestens 250 ml</p>
+          <p id="reminder-next-push" class="text-xs mt-1 opacity-75"></p>
+        </div>
+      </div>
+
+      <!-- On-track Info -->
+      <div id="ontrack-info" class="hidden text-center text-zinc-500 text-xs mb-4">
+        📉 Ohne weiteres Trinken fällst du um <span id="ontrack-time" class="text-orange-400 font-semibold"></span> unter die Sollkurve
+      </div>
+
+      <!-- Quick Buttons -->
+      <div class="mb-6">
+        <p class="text-zinc-400 text-sm mb-3">Wassermengen</p>
+        <div class="grid grid-cols-4 gap-3 mb-6">
+          <button onclick="askConfirm(250, null, null)"  class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">250 ml</button>
+          <button onclick="askConfirm(500, null, null)"  class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">500 ml</button>
+          <button onclick="askConfirm(1000, null, null)" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">1000 ml</button>
+          <button onclick="askConfirm(1500, null, null)" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">1500 ml</button>
+        </div>
+
+        <p class="text-zinc-400 text-sm mb-3">Andere Getränke</p>
+        <div class="grid grid-cols-2 gap-3">
+          <button onclick="addKaffee()"       class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">☕ Kaffee<br><span class="text-xs text-zinc-500">(40–230+ ml)</span></button>
+          <button onclick="askConfirm(250, 'Energy Drink', 'other')" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">⚡ Energy Drink<br><span class="text-xs text-zinc-500">(250 ml)</span></button>
+          <button onclick="askConfirm(300, 'Whey Shake', 'other')"   class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🥤 Whey Shake<br><span class="text-xs text-zinc-500">(300 ml)</span></button>
+          <button onclick="askConfirm(500, '500ml Glas', 'other')"   class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🥛 500 ml Glas<br><span class="text-xs text-zinc-500">(500 ml)</span></button>
+          <button onclick="askConfirm(650, '650ml Glas', 'other')"   class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🥛 650 ml Glas<br><span class="text-xs text-zinc-500">(650 ml)</span></button>
+          <button onclick="askConfirm(1700, 'Barbarian Jug', 'other')" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🏺 Barbarian Jug<br><span class="text-xs text-zinc-500">(1700 ml)</span></button>
+        </div>
+      </div>
+
+      <button onclick="showCustomAdd()"
+              class="w-full bg-orange-600 hover:bg-orange-500 py-4 rounded-3xl text-lg font-semibold mb-6 active:scale-95 transition">
+        + Eigener Eintrag (ml)
+      </button>
+
+      <!-- Chart -->
+      <div class="bg-zinc-900 rounded-3xl p-5 mb-6 border border-orange-900">
+        <p class="text-zinc-400 mb-4 text-sm">Verlauf • Soll-Linie vs. Ist</p>
+        <div id="chart-container">
+          <canvas id="waterChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Mini-Statistiken -->
+      <div class="mb-6">
+        <div class="bg-zinc-900 rounded-2xl p-4 border border-orange-900">
+          <p class="text-zinc-400 text-xs mb-3">☕ Andere Getränke heute</p>
+          <div id="other-drinks-breakdown" class="text-sm text-zinc-300">
+            <span class="text-zinc-600 italic">Noch nichts eingetragen</span>
           </div>
         </div>
       </div>
-    </div>
-    <button onclick="openStats()" class="text-2xl">📊</button>
-    <button onclick="toggleSettings()" class="text-2xl">⚙️</button>
-  </div>
-</div>
 
-<div class="p-5">
-  <!-- Aktueller Stand -->
-  <div class="bg-zinc-900 rounded-3xl p-6 mb-6 border border-orange-900">
-    <div class="flex justify-between items-baseline mb-3">
-      <div>
-        <p class="text-zinc-400 text-sm">Heute getrunken</p>
-        <p id="drunk-amount" class="text-5xl font-bold">0 <span class="text-3xl text-zinc-500">ml</span></p>
-      </div>
-      <div class="text-right">
-        <p id="goal-text" class="text-zinc-400 text-sm">von 2000 ml</p>
-        <p id="progress-percent" class="text-5xl font-bold orange-accent">0%</p>
-      </div>
-    </div>
-    <!-- Winstreak Badge -->
-    <div id="winstreak-badge" class="flex items-center justify-between mb-2">
-      <span class="text-xs text-zinc-500">Winstreak</span>
-      <span id="winstreak-display" class="text-sm font-bold text-orange-400">🔥 0 Tage</span>
-    </div>
-    <div class="h-4 bg-zinc-800 rounded-2xl overflow-hidden">
-      <div id="progress-bar" class="h-full progress-orange rounded-2xl transition-all duration-500" style="width: 0%"></div>
-    </div>
-  </div>
-
-  <!-- Reminder -->
-  <div id="reminder-banner" class="hidden bg-orange-600 text-black rounded-3xl p-5 mb-6 flex gap-4 items-center">
-    <span class="text-4xl">⚠️</span>
-    <div>
-      <p class="font-semibold text-lg">Du liegst zurück!</p>
-      <p id="reminder-subtext" class="text-sm">Trink jetzt mindestens 250 ml</p>
-      <p id="reminder-next-push" class="text-xs mt-1 opacity-75"></p>
-    </div>
-  </div>
-
-  <!-- On-track Info -->
-  <div id="ontrack-info" class="hidden text-center text-zinc-500 text-xs mb-4">
-    📉 Ohne weiteres Trinken fällst du um <span id="ontrack-time" class="text-orange-400 font-semibold"></span> unter die Sollkurve
-  </div>
-
-  <!-- Quick Buttons -->
-  <div class="mb-6">
-    <p class="text-zinc-400 text-sm mb-3">Wassermengen</p>
-    <div class="grid grid-cols-4 gap-3 mb-6">
-      <button onclick="askConfirm(250, null, null)"  class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">250 ml</button>
-      <button onclick="askConfirm(500, null, null)"  class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">500 ml</button>
-      <button onclick="askConfirm(1000, null, null)" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">1000 ml</button>
-      <button onclick="askConfirm(1500, null, null)" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">1500 ml</button>
-    </div>
-
-    <p class="text-zinc-400 text-sm mb-3">Andere Getränke</p>
-    <div class="grid grid-cols-2 gap-3">
-      <button onclick="addKaffee()"       class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">☕ Kaffee<br><span class="text-xs text-zinc-500">(40–230+ ml)</span></button>
-      <button onclick="askConfirm(250, 'Energy Drink', 'other')" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">⚡ Energy Drink<br><span class="text-xs text-zinc-500">(250 ml)</span></button>
-      <button onclick="askConfirm(300, 'Whey Shake', 'other')"   class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🥤 Whey Shake<br><span class="text-xs text-zinc-500">(300 ml)</span></button>
-      <button onclick="askConfirm(500, '500ml Glas', 'other')"   class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🥛 500 ml Glas<br><span class="text-xs text-zinc-500">(500 ml)</span></button>
-      <button onclick="askConfirm(650, '650ml Glas', 'other')"   class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🥛 650 ml Glas<br><span class="text-xs text-zinc-500">(650 ml)</span></button>
-      <button onclick="askConfirm(1700, 'Barbarian Jug', 'other')" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🏺 Barbarian Jug<br><span class="text-xs text-zinc-500">(1700 ml)</span></button>
-    </div>
-  </div>
-
-  <button onclick="showCustomAdd()"
-          class="w-full bg-orange-600 hover:bg-orange-500 py-4 rounded-3xl text-lg font-semibold mb-6 active:scale-95 transition">
-    + Eigener Eintrag (ml)
-  </button>
-
-  <!-- Chart -->
-  <div class="bg-zinc-900 rounded-3xl p-5 mb-6 border border-orange-900">
-    <p class="text-zinc-400 mb-4 text-sm">Verlauf • Soll-Linie vs. Ist</p>
-    <div id="chart-container">
-      <canvas id="waterChart"></canvas>
-    </div>
-  </div>
-
-  <!-- Mini-Statistiken -->
-  <div class="mb-6">
-    <div class="bg-zinc-900 rounded-2xl p-4 border border-orange-900">
-      <p class="text-zinc-400 text-xs mb-3">☕ Andere Getränke heute</p>
-      <div id="other-drinks-breakdown" class="text-sm text-zinc-300">
-        <span class="text-zinc-600 italic">Noch nichts eingetragen</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Heutige Einträge -->
-  <div class="bg-zinc-900 rounded-2xl border border-orange-900 mb-6 overflow-hidden">
-    <button onclick="toggleLogList()" class="w-full flex justify-between items-center px-4 py-3">
-      <div class="flex items-center gap-2">
-        <span class="text-zinc-400 text-sm">Heutige Einträge</span>
-        <span id="total-entries" class="text-xs bg-zinc-800 px-3 py-1 rounded-2xl"></span>
-      </div>
-      <span id="log-chevron" class="text-zinc-500 transition-transform duration-200">▼</span>
-    </button>
-    <div id="log-list-wrapper" class="hidden px-4 pb-4">
-      <div id="log-list" class="space-y-3"></div>
-    </div>
-  </div>
-</div>
-
-<!-- Settings Modal -->
-<div id="settings-modal" class="hidden fixed inset-0 bg-black/80 flex items-end z-50">
-  <div class="bg-zinc-900 rounded-t-3xl w-full p-6 max-h-[90vh] overflow-auto">
-    <div class="flex justify-between mb-6">
-      <h2 class="text-2xl font-semibold">Einstellungen</h2>
-      <button onclick="toggleSettings()" class="text-4xl leading-none text-zinc-400">×</button>
-    </div>
-    <div class="space-y-6">
-
-      <!-- Tracker-Einstellungen -->
-      <div>
-        <label class="block text-zinc-400 text-sm mb-2">Tägliches Ziel (ml)</label>
-        <input id="goal-input" type="number" value="2000" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 text-3xl">
-      </div>
-      <div class="space-y-3">
-        <div>
-          <label class="block text-zinc-400 text-sm mb-2">Startzeit</label>
-          <input id="start-time" type="time" value="08:00" class="w-full bg-zinc-800 rounded-2xl px-5 py-4">
-        </div>
-        <div>
-          <label class="block text-zinc-400 text-sm mb-2">Endzeit</label>
-          <input id="end-time" type="time" value="22:00" class="w-full bg-zinc-800 rounded-2xl px-5 py-4">
-        </div>
-      </div>
-
-      <!-- Pushover Test -->
-      <div class="border-t border-zinc-700 pt-4">
-        <button onclick="testPushover()"
-                class="w-full bg-zinc-700 hover:bg-zinc-600 py-3 rounded-2xl text-sm font-medium transition">
-          🔔 Test-Benachrichtigung senden
+      <!-- Heutige Einträge -->
+      <div class="bg-zinc-900 rounded-2xl border border-orange-900 mb-6 overflow-hidden">
+        <button onclick="toggleLogList()" class="w-full flex justify-between items-center px-4 py-3">
+          <div class="flex items-center gap-2">
+            <span class="text-zinc-400 text-sm">Heutige Einträge</span>
+            <span id="total-entries" class="text-xs bg-zinc-800 px-3 py-1 rounded-2xl"></span>
+          </div>
+          <span id="log-chevron" class="text-zinc-500 transition-transform duration-200">▼</span>
         </button>
+        <div id="log-list-wrapper" class="hidden px-4 pb-4">
+          <div id="log-list" class="space-y-3"></div>
+        </div>
       </div>
-
-      <button onclick="saveSettings()" class="w-full bg-orange-600 py-4 rounded-3xl text-lg font-semibold mt-4">
-        Speichern
-      </button>
     </div>
-  </div>
-</div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="hidden fixed inset-0 bg-black/80 flex items-end z-50">
+      <div class="bg-zinc-900 rounded-t-3xl w-full p-6 max-h-[90vh] overflow-auto">
+        <div class="flex justify-between mb-6">
+          <h2 class="text-2xl font-semibold">Einstellungen</h2>
+          <button onclick="toggleSettings()" class="text-4xl leading-none text-zinc-400">×</button>
+        </div>
+        <div class="space-y-6">
+
+          <!-- Tracker-Einstellungen -->
+          <div>
+            <label class="block text-zinc-400 text-sm mb-2">Tägliches Ziel (ml)</label>
+            <input id="goal-input" type="number" value="2000" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 text-3xl">
+          </div>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-zinc-400 text-sm mb-2">Startzeit</label>
+              <input id="start-time" type="time" value="08:00" class="w-full bg-zinc-800 rounded-2xl px-5 py-4">
+            </div>
+            <div>
+              <label class="block text-zinc-400 text-sm mb-2">Endzeit</label>
+              <input id="end-time" type="time" value="22:00" class="w-full bg-zinc-800 rounded-2xl px-5 py-4">
+            </div>
+          </div>
+
+          <!-- Pushover Test -->
+          <div class="border-t border-zinc-700 pt-4">
+            <button onclick="testPushover()"
+                    class="w-full bg-zinc-700 hover:bg-zinc-600 py-3 rounded-2xl text-sm font-medium transition">
+              🔔 Test-Benachrichtigung senden
+            </button>
+          </div>
+
+          <button onclick="saveSettings()" class="w-full bg-orange-600 py-4 rounded-3xl text-lg font-semibold mt-4">
+            Speichern
+          </button>
+        </div>
+      </div>
+    </div>
 
   </div>
 
   <!-- Stats Sheet -->
-
   <div id="stats-modal" class="hidden fixed inset-0 bg-black/80 flex items-end z-50">
     <div class="bg-zinc-900 rounded-t-3xl w-full max-h-[92vh] overflow-auto" style="animation: slideUp 0.3s ease-out">
       <div class="sticky top-0 bg-zinc-900 rounded-t-3xl px-6 pt-6 pb-4 border-b border-zinc-800 z-10">
@@ -294,17 +291,15 @@
         </div>
       </div>
 
-  <div class="px-6 py-5 space-y-6" id="stats-content">
-    <p class="text-zinc-500 text-center py-8">Lade Daten...</p>
-  </div>
-</div>
-
+      <div class="px-6 py-5 space-y-6" id="stats-content">
+        <p class="text-zinc-500 text-center py-8">Lade Daten...</p>
+      </div>
+    </div>
   </div>
 
   <div id="toast"></div>
 
   <!-- Erfolgs-Modal -->
-
   <div id="success-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:200;align-items:center;justify-content:center;padding:20px;">
     <div class="bg-zinc-900 rounded-3xl p-8 w-full max-w-sm border border-orange-500 text-center" style="animation: popIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275)">
       <div id="success-emoji" style="font-size:72px;line-height:1;margin-bottom:16px;">🏆</div>
@@ -321,7 +316,6 @@
   </div>
 
   <!-- Bestätigungs-Modal -->
-
   <div id="confirm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:300;align-items:flex-end;justify-content:center;">
     <div class="bg-zinc-900 rounded-t-3xl w-full p-6 border-t border-orange-800" style="animation: slideUp 0.25s ease-out">
       <p class="text-zinc-400 text-xs uppercase tracking-widest mb-1">Bestätigen</p>
@@ -334,7 +328,6 @@
   </div>
 
   <!-- Flasche leer Modal -->
-
   <div id="bottle-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:200;align-items:center;justify-content:center;padding:20px;">
     <div class="bg-zinc-900 rounded-3xl p-8 w-full max-w-sm border border-orange-800 text-center" style="animation: popIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275)">
       <div style="font-size:64px;line-height:1;margin-bottom:16px;">🍶</div>
@@ -349,40 +342,39 @@
   <div id="milk-modal">
     <div class="bg-zinc-900 rounded-3xl p-6 w-full max-w-sm border border-orange-800">
 
-  <!-- Schritt 1: Kaffeemenge -->
-  <div id="coffee-step-size">
-    <h3 class="text-xl font-semibold mb-1">☕ Welcher Kaffee?</h3>
-    <p class="text-zinc-400 text-sm mb-5">Kaffeemenge wählen</p>
-    <div class="grid grid-cols-2 gap-3 mb-3">
-      <button class="milk-option" onclick="selectCoffeeSize(40)">Espresso<br><span class="text-xs text-zinc-400">40 ml</span></button>
-      <button class="milk-option" onclick="selectCoffeeSize(80)">Double Espresso<br><span class="text-xs text-zinc-400">80 ml</span></button>
-      <button class="milk-option" onclick="selectCoffeeSize(100)">Schwarz<br><span class="text-xs text-zinc-400">100 ml</span></button>
-      <button class="milk-option" onclick="selectCoffeeSize(120)">Barista<br><span class="text-xs text-zinc-400">120 ml</span></button>
-      <button class="milk-option" onclick="selectCoffeeSize(150)">Gran Lungo<br><span class="text-xs text-zinc-400">150 ml</span></button>
-      <button class="milk-option" onclick="selectCoffeeSize(200)">TGW<br><span class="text-xs text-zinc-400">200 ml</span></button>
+      <!-- Schritt 1: Kaffeemenge -->
+      <div id="coffee-step-size">
+        <h3 class="text-xl font-semibold mb-1">☕ Welcher Kaffee?</h3>
+        <p class="text-zinc-400 text-sm mb-5">Kaffeemenge wählen</p>
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <button class="milk-option" onclick="selectCoffeeSize(40)">Espresso<br><span class="text-xs text-zinc-400">40 ml</span></button>
+          <button class="milk-option" onclick="selectCoffeeSize(80)">Double Espresso<br><span class="text-xs text-zinc-400">80 ml</span></button>
+          <button class="milk-option" onclick="selectCoffeeSize(100)">Schwarz<br><span class="text-xs text-zinc-400">100 ml</span></button>
+          <button class="milk-option" onclick="selectCoffeeSize(120)">Barista<br><span class="text-xs text-zinc-400">120 ml</span></button>
+          <button class="milk-option" onclick="selectCoffeeSize(150)">Gran Lungo<br><span class="text-xs text-zinc-400">150 ml</span></button>
+          <button class="milk-option" onclick="selectCoffeeSize(200)">TGW<br><span class="text-xs text-zinc-400">200 ml</span></button>
+        </div>
+        <button class="milk-option w-full" style="padding: 16px 0; font-size: 16px;" onclick="selectCoffeeSize(230)">
+          ☕ Mug<br><span class="text-xs text-zinc-400">230 ml</span>
+        </button>
+      </div>
+
+      <!-- Schritt 2: Milch -->
+      <div id="coffee-step-milk" class="hidden">
+        <h3 class="text-xl font-semibold mb-1">🥛 Milch dazu?</h3>
+        <p id="milk-step-subtitle" class="text-zinc-400 text-sm mb-5">Basis: 230 ml · Wie viel Milch?</p>
+        <div class="grid grid-cols-3 gap-3 mb-3">
+          <button class="milk-option" onclick="confirmKaffee(20)">20 ml</button>
+          <button class="milk-option" onclick="confirmKaffee(40)">40 ml</button>
+          <button class="milk-option" onclick="confirmKaffee(60)">60 ml</button>
+          <button class="milk-option" onclick="confirmKaffee(80)">80 ml</button>
+          <button class="milk-option" onclick="confirmKaffee(100)">100 ml</button>
+          <button class="milk-option no" onclick="confirmKaffee(0)">Keine Milch</button>
+        </div>
+        <button onclick="backToCoffeeSize()" class="w-full text-zinc-500 text-sm mt-1 py-2">← Zurück</button>
+      </div>
+
     </div>
-    <button class="milk-option w-full" style="padding: 16px 0; font-size: 16px;" onclick="selectCoffeeSize(230)">
-      ☕ Mug<br><span class="text-xs text-zinc-400">230 ml</span>
-    </button>
-  </div>
-
-  <!-- Schritt 2: Milch -->
-  <div id="coffee-step-milk" class="hidden">
-    <h3 class="text-xl font-semibold mb-1">🥛 Milch dazu?</h3>
-    <p id="milk-step-subtitle" class="text-zinc-400 text-sm mb-5">Basis: 230 ml · Wie viel Milch?</p>
-    <div class="grid grid-cols-3 gap-3 mb-3">
-      <button class="milk-option" onclick="confirmKaffee(20)">20 ml</button>
-      <button class="milk-option" onclick="confirmKaffee(40)">40 ml</button>
-      <button class="milk-option" onclick="confirmKaffee(60)">60 ml</button>
-      <button class="milk-option" onclick="confirmKaffee(80)">80 ml</button>
-      <button class="milk-option" onclick="confirmKaffee(100)">100 ml</button>
-      <button class="milk-option no" onclick="confirmKaffee(0)">Keine Milch</button>
-    </div>
-    <button onclick="backToCoffeeSize()" class="w-full text-zinc-500 text-sm mt-1 py-2">← Zurück</button>
-  </div>
-
-</div>
-
   </div>
 
   <script>
@@ -412,10 +404,10 @@
       lastGoalDate: null,
       lastPushSent: null,
       bottlesToday: 0,
-      bottlesDate: null
+      bottlesDate: null,
+      pendingBottleMl: 0
     };
     let goalReachedToday = false;
-    let pendingBottomlessMl = 0; // cumulative water-button ml since last bottle confirm
     let logs = [];
     let supabaseClient = null;
 
@@ -465,17 +457,19 @@
           settings.goal         = settingsData.goal         ?? settings.goal;
           settings.startTime    = settingsData.start_time   ?? settings.startTime;
           settings.endTime      = settingsData.end_time     ?? settings.endTime;
-          settings.winstreak    = settingsData.winstreak    ?? 0;
-          settings.lastGoalDate = settingsData.last_goal_date ?? null;
-          settings.lastPushSent = settingsData.last_push_sent ?? null;
-          // Reset bottles if it's a new day
+          settings.winstreak       = settingsData.winstreak      ?? 0;
+          settings.lastGoalDate    = settingsData.last_goal_date  ?? null;
+          settings.lastPushSent    = settingsData.last_push_sent  ?? null;
+          settings.pendingBottleMl = settingsData.pending_bottle_ml ?? 0;
+          // Reset pending bottle ml if it's a new day
           const todayStr = new Date().toISOString().split('T')[0];
           if (settingsData.bottles_date === todayStr) {
             settings.bottlesToday = settingsData.bottles_today ?? 0;
-            settings.bottlesDate  = settingsData.bottles_date ?? null;
+            settings.bottlesDate  = settingsData.bottles_date  ?? null;
           } else {
-            settings.bottlesToday = 0;
-            settings.bottlesDate  = null;
+            settings.bottlesToday    = 0;
+            settings.bottlesDate     = null;
+            settings.pendingBottleMl = 0;
           }
         }
 
@@ -561,14 +555,16 @@
       if (!supabaseClient) return;
       try {
         await supabaseClient.from('water_settings').upsert({
-          id:             1,
-          goal:           settings.goal,
-          start_time:     settings.startTime,
-          end_time:       settings.endTime,
-          winstreak:      settings.winstreak,
-          last_goal_date: settings.lastGoalDate,
-          bottles_today:  settings.bottlesToday,
-          bottles_date:   settings.bottlesDate
+          id:                 1,
+          goal:               settings.goal,
+          start_time:         settings.startTime,
+          end_time:           settings.endTime,
+          winstreak:          settings.winstreak,
+          last_goal_date:     settings.lastGoalDate,
+          bottles_today:      settings.bottlesToday,
+          bottles_date:       settings.bottlesDate,
+          last_push_sent:     settings.lastPushSent,
+          pending_bottle_ml:  settings.pendingBottleMl
         });
       } catch(e) {
         console.error('Supabase save settings error:', e);
@@ -954,17 +950,17 @@
     // ─── Flasche ─────────────────────────────────────────────────────────────────
     async function confirmBottle(isEmpty) {
       document.getElementById('bottle-modal').style.display = 'none';
-      pendingBottomlessMl = 0;
+      settings.pendingBottleMl = 0;
 
       if (isEmpty) {
         const today = new Date().toISOString().split('T')[0];
         settings.bottlesToday = (settings.bottlesToday || 0) + 1;
         settings.bottlesDate  = today;
-        saveToLocal();
-        await saveSettingsToSupabase();
-        updateUI();
-        showToast(`🍶 Flasche ${settings.bottlesToday} eingetragen!`);
       }
+      saveToLocal();
+      await saveSettingsToSupabase();
+      updateUI();
+      if (isEmpty) showToast(`🍶 Flasche ${settings.bottlesToday} eingetragen!`);
     }
 
     let selectedCoffeeSize = 230;
@@ -1048,11 +1044,15 @@
 
       // Track cumulative water-button ml for bottle check
       if (!category) {
-        pendingBottomlessMl += parseInt(amount);
-        if (pendingBottomlessMl >= 1500) {
+        settings.pendingBottleMl += parseInt(amount);
+        saveToLocal();
+        if (settings.pendingBottleMl >= 1500) {
+          await saveSettingsToSupabase();
           setTimeout(() => {
             document.getElementById('bottle-modal').style.display = 'flex';
-          }, 400); // slight delay so UI updates first
+          }, 400);
+        } else {
+          saveSettingsToSupabase(); // fire and forget
         }
       }
 
@@ -1371,6 +1371,5 @@
       setInterval(checkReminder, 120_000); // banner only, pushover via edge function
     };
   </script>
-
 </body>
 </html>
