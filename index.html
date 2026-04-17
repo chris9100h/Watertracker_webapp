@@ -405,7 +405,6 @@
       lastPushSent: null,
       bottlesToday: 0,
       bottlesDate: null,
-      pendingBottleMl: 0
     };
     let goalReachedToday = false;
     let logs = [];
@@ -460,7 +459,6 @@
           settings.winstreak       = settingsData.winstreak      ?? 0;
           settings.lastGoalDate    = settingsData.last_goal_date  ?? null;
           settings.lastPushSent    = settingsData.last_push_sent  ?? null;
-          settings.pendingBottleMl = settingsData.pending_bottle_ml ?? 0;
           // Reset pending bottle ml if it's a new day
           const todayStr = new Date().toISOString().split('T')[0];
           if (settingsData.bottles_date === todayStr) {
@@ -469,7 +467,6 @@
           } else {
             settings.bottlesToday    = 0;
             settings.bottlesDate     = null;
-            settings.pendingBottleMl = 0;
           }
         }
 
@@ -564,7 +561,6 @@
           bottles_today:      settings.bottlesToday,
           bottles_date:       settings.bottlesDate,
           last_push_sent:     settings.lastPushSent,
-          pending_bottle_ml:  settings.pendingBottleMl
         });
       } catch(e) {
         console.error('Supabase save settings error:', e);
@@ -950,7 +946,6 @@
     // ─── Flasche ─────────────────────────────────────────────────────────────────
     async function confirmBottle(isEmpty) {
       document.getElementById('bottle-modal').style.display = 'none';
-      settings.pendingBottleMl = 0;
 
       if (isEmpty) {
         const today = new Date().toISOString().split('T')[0];
@@ -1008,7 +1003,13 @@
       }
     });
 
-    // ─── Log List Toggle ──────────────────────────────────────────────────────────
+    function getPendingBottleMl() {
+      const totalWaterButtonMl = logs
+        .filter(l => !l.category)
+        .reduce((sum, l) => sum + l.amount, 0);
+      const confirmedBottles = settings.bottlesToday || 0;
+      return Math.max(0, totalWaterButtonMl - confirmedBottles * 1500);
+    }
     function toggleLogList() {
       const wrapper  = document.getElementById('log-list-wrapper');
       const chevron  = document.getElementById('log-chevron');
@@ -1044,15 +1045,11 @@
 
       // Track cumulative water-button ml for bottle check
       if (!category) {
-        settings.pendingBottleMl += parseInt(amount);
-        saveToLocal();
-        if (settings.pendingBottleMl >= 1500) {
-          await saveSettingsToSupabase();
+        const pending = getPendingBottleMl();
+        if (pending >= 1500) {
           setTimeout(() => {
             document.getElementById('bottle-modal').style.display = 'flex';
           }, 400);
-        } else {
-          saveSettingsToSupabase(); // fire and forget
         }
       }
 
