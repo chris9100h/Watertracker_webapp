@@ -164,11 +164,22 @@
       <!-- Quick Buttons -->
       <div class="mb-6">
         <p class="text-zinc-400 text-sm mb-3">Wassermengen</p>
-        <div class="grid grid-cols-4 gap-3 mb-6">
+        <div class="grid grid-cols-4 gap-3 mb-4">
           <button onclick="askConfirm(250, null, null)"  class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">250 ml</button>
           <button onclick="askConfirm(500, null, null)"  class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">500 ml</button>
           <button onclick="askConfirm(1000, null, null)" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">1000 ml</button>
           <button onclick="askConfirm(1500, null, null)" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">1500 ml</button>
+        </div>
+
+        <!-- Flasche Progress -->
+        <div id="bottle-progress-row" class="hidden bg-zinc-900 rounded-2xl p-4 border border-orange-900 mb-4">
+          <div class="flex justify-between items-center mb-2">
+            <span class="text-zinc-400 text-xs">🍶 Aktuelle Flasche</span>
+            <span id="bottle-progress-text" class="text-zinc-400 text-xs"></span>
+          </div>
+          <div class="h-2 bg-zinc-800 rounded-full overflow-hidden">
+            <div id="bottle-progress-bar" class="h-full rounded-full transition-all duration-500" style="width: 0%; background: linear-gradient(90deg, #3b82f6, #60a5fa);"></div>
+          </div>
         </div>
 
         <p class="text-zinc-400 text-sm mb-3">Andere Getränke</p>
@@ -763,6 +774,18 @@
           html += `</div>`;
         }
         breakdownEl.innerHTML = html;
+      }
+
+      // Flasche Progress
+      const pending = getPendingBottleMl();
+      const bottleRow = document.getElementById('bottle-progress-row');
+      if (pending > 0) {
+        const bottlePct = Math.min(Math.round((pending / 1500) * 100), 100);
+        document.getElementById('bottle-progress-bar').style.width = `${bottlePct}%`;
+        document.getElementById('bottle-progress-text').textContent = `${pending} / 1500 ml`;
+        bottleRow.classList.remove('hidden');
+      } else {
+        bottleRow.classList.add('hidden');
       }
 
       checkWinstreak();
