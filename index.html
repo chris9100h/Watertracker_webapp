@@ -249,11 +249,25 @@
           <div class="space-y-3">
             <div>
               <label class="block text-zinc-400 text-sm mb-2">Startzeit</label>
-              <input id="start-time" type="time" value="08:00" class="w-full bg-zinc-800 rounded-2xl px-5 py-4">
+              <div class="flex gap-2 items-center">
+                <select id="start-hour" class="flex-1 bg-zinc-800 rounded-2xl px-3 py-3 text-center"></select>
+                <span class="text-zinc-400 font-bold">:</span>
+                <select id="start-min" class="flex-1 bg-zinc-800 rounded-2xl px-3 py-3 text-center">
+                  <option value="00">00</option>
+                  <option value="30">30</option>
+                </select>
+              </div>
             </div>
             <div>
               <label class="block text-zinc-400 text-sm mb-2">Endzeit</label>
-              <input id="end-time" type="time" value="22:00" class="w-full bg-zinc-800 rounded-2xl px-5 py-4">
+              <div class="flex gap-2 items-center">
+                <select id="end-hour" class="flex-1 bg-zinc-800 rounded-2xl px-3 py-3 text-center"></select>
+                <span class="text-zinc-400 font-bold">:</span>
+                <select id="end-min" class="flex-1 bg-zinc-800 rounded-2xl px-3 py-3 text-center">
+                  <option value="00">00</option>
+                  <option value="30">30</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -1013,7 +1027,28 @@
       askConfirm(total, label, 'other');
     }
 
-    // ─── App Switcher ─────────────────────────────────────────────────────────────
+    function populateHours() {
+      ['start-hour', 'end-hour'].forEach(id => {
+        const sel = document.getElementById(id);
+        if (sel.options.length > 0) return;
+        for (let h = 0; h <= 23; h++) {
+          const opt = document.createElement('option');
+          opt.value = String(h).padStart(2, '0');
+          opt.textContent = String(h).padStart(2, '0');
+          sel.appendChild(opt);
+        }
+      });
+    }
+
+    function timeToSelects(time, hourId, minId) {
+      const [h, m] = time.split(':');
+      document.getElementById(hourId).value = h;
+      document.getElementById(minId).value  = m === '30' ? '30' : '00';
+    }
+
+    function selectsToTime(hourId, minId) {
+      return `${document.getElementById(hourId).value}:${document.getElementById(minId).value}`;
+    }
     function toggleAppSwitcher() {
       const el = document.getElementById('app-switcher');
       el.classList.toggle('hidden');
@@ -1107,9 +1142,10 @@
     function toggleSettings() {
       const modal = document.getElementById('settings-modal');
       if (modal.classList.contains('hidden')) {
-        document.getElementById('goal-input').value    = settings.goal;
-        document.getElementById('start-time').value    = settings.startTime;
-        document.getElementById('end-time').value      = settings.endTime;
+      populateHours();
+      document.getElementById('goal-input').value = settings.goal;
+      timeToSelects(settings.startTime, 'start-hour', 'start-min');
+      timeToSelects(settings.endTime,   'end-hour',   'end-min');
         modal.classList.remove('hidden');
       } else {
         modal.classList.add('hidden');
@@ -1117,9 +1153,9 @@
     }
 
     async function saveSettings() {
-      settings.goal          = parseInt(document.getElementById('goal-input').value) || 2000;
-      settings.startTime     = document.getElementById('start-time').value || "08:00";
-      settings.endTime       = document.getElementById('end-time').value   || "22:00";
+      settings.goal      = parseInt(document.getElementById('goal-input').value) || 2000;
+      settings.startTime = selectsToTime('start-hour', 'start-min');
+      settings.endTime   = selectsToTime('end-hour',   'end-min');
       // Keys are hardcoded — not read from form
       saveToLocal();
       initSupabase();
