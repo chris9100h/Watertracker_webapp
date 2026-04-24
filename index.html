@@ -977,6 +977,10 @@
       .stats-tab.active     { backdrop-filter: none; -webkit-backdrop-filter: none; }
       .stat-card            { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(22,22,22,0.92); }
       .tweak-panel          { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(14,14,14,0.97); }
+      /* SVG filter on ring forces repaint on every dashoffset transition frame */
+      .ring-fill            { filter: none; transition-duration: 0.3s; }
+      /* Shimmer uses overflow:hidden clip → can't composite → 60fps repaint */
+      .bar-fill::after      { animation: none; }
     }
 
     /* Hide elements utility */
@@ -1279,7 +1283,7 @@
         </button>
       </div>
       <button class="cta" style="margin-bottom:0" onclick="saveSettings()">Speichern</button>
-      <div style="margin-top:18px;text-align:center;font-size:12px;color:var(--fg-mute);letter-spacing:0.04em;">Version 2.5</div>
+      <div style="margin-top:18px;text-align:center;font-size:12px;color:var(--fg-mute);letter-spacing:0.04em;">Version 2.6</div>
     </div>
   </div>
 
