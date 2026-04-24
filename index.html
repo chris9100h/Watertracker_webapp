@@ -1294,7 +1294,7 @@
         </button>
       </div>
       <button class="cta" style="margin-bottom:0" onclick="saveSettings()">Speichern</button>
-      <div style="margin-top:18px;text-align:center;font-size:12px;color:var(--fg-mute);letter-spacing:0.04em;">Version 2.7</div>
+      <div style="margin-top:18px;text-align:center;font-size:12px;color:var(--fg-mute);letter-spacing:0.04em;">Version 2.8</div>
     </div>
   </div>
 
@@ -1406,6 +1406,39 @@
           <button class="pill-option no" onclick="confirmKaffee(0)">Keine</button>
         </div>
         <button class="secondary-btn" onclick="backToCoffeeSize()" style="margin-top:4px">← Zurück</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Custom Add Sheet ─── -->
+  <div id="custom-add-modal" class="sheet-backdrop" onclick="handleCustomBackdropClick(event)">
+    <div class="sheet">
+      <div class="sheet-grabber"></div>
+      <div class="sheet-header">
+        <div class="sheet-title">Eigener Eintrag</div>
+        <button class="sheet-close" onclick="closeCustomModal()">✕</button>
+      </div>
+      <div class="form-group">
+        <label class="field-label">Menge</label>
+        <input id="custom-ml-input" class="field big" type="number" inputmode="numeric" min="1" max="5000" placeholder="ml" />
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:18px">
+        <button class="pill-option" onclick="setCustomMl(100)">100<small>ml</small></button>
+        <button class="pill-option" onclick="setCustomMl(150)">150<small>ml</small></button>
+        <button class="pill-option" onclick="setCustomMl(200)">200<small>ml</small></button>
+        <button class="pill-option" onclick="setCustomMl(300)">300<small>ml</small></button>
+        <button class="pill-option" onclick="setCustomMl(330)">330<small>ml</small></button>
+        <button class="pill-option" onclick="setCustomMl(400)">400<small>ml</small></button>
+        <button class="pill-option" onclick="setCustomMl(750)">750<small>ml</small></button>
+        <button class="pill-option" onclick="setCustomMl(1000)">1000<small>ml</small></button>
+      </div>
+      <div class="form-group">
+        <label class="field-label">Name (optional)</label>
+        <input id="custom-name-input" class="field" type="text" placeholder="z. B. Saft, Tee …" />
+      </div>
+      <div class="confirm-grid" style="margin-top:4px">
+        <button class="btn-lg" onclick="closeCustomModal()">✕ Abbrechen</button>
+        <button class="btn-lg primary" onclick="confirmCustomAdd()">✓ Hinzufügen</button>
       </div>
     </div>
   </div>
@@ -2092,9 +2125,40 @@
     }
 
     function showCustomAdd() {
-      const amount = prompt("Wie viele ml hast du getrunken?", "300");
-      if (amount && !isNaN(amount) && amount > 0) quickAdd(parseInt(amount), null, 'custom');
+      document.getElementById('custom-ml-input').value = '';
+      document.getElementById('custom-name-input').value = '';
+      document.getElementById('custom-add-modal').classList.add('open');
+      setTimeout(() => document.getElementById('custom-ml-input').focus(), 350);
     }
+    function closeCustomModal() {
+      document.getElementById('custom-add-modal').classList.remove('open');
+    }
+    function handleCustomBackdropClick(e) {
+      if (e.target === document.getElementById('custom-add-modal')) closeCustomModal();
+    }
+    function setCustomMl(val) {
+      document.getElementById('custom-ml-input').value = val;
+      document.getElementById('custom-ml-input').focus();
+    }
+    function confirmCustomAdd() {
+      const raw = document.getElementById('custom-ml-input').value;
+      const name = document.getElementById('custom-name-input').value.trim() || null;
+      const amount = parseInt(raw);
+      if (!raw || isNaN(amount) || amount <= 0) {
+        document.getElementById('custom-ml-input').focus();
+        return;
+      }
+      closeCustomModal();
+      quickAdd(amount, name, 'custom');
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+      ['custom-ml-input', 'custom-name-input'].forEach(id => {
+        document.getElementById(id).addEventListener('keydown', e => {
+          if (e.key === 'Enter') confirmCustomAdd();
+          if (e.key === 'Escape') closeCustomModal();
+        });
+      });
+    });
 
     async function deleteEntry(index) {
       const sorted = [...logs].sort((a,b) => b.ts - a.ts);
