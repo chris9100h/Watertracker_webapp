@@ -2,404 +2,1351 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#000000">
   <title>Wasser Tracker</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💧</text></svg>">
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="Wasser">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
-    body { font-family: 'Inter', system-ui, sans-serif; }
-    .orange-accent { color: #f97316; }
-    .progress-orange { background: linear-gradient(90deg, #f97316, #fb923c); }
-    #chart-container { position: relative; width: 100%; height: 220px; }
+    /* ─── Tokens ─────────────────────────────────────────── */
+    :root {
+      --accent: #ff8a1f;
+      --accent-2: #ff6a00;
+      --accent-soft: #ffb070;
+      --accent-glow: rgba(255, 122, 40, 0.55);
+      --bg: #050505;
+      --fg: #ffffff;
+      --fg-dim: rgba(255,255,255,0.62);
+      --fg-mute: rgba(255,255,255,0.38);
+      --hairline: rgba(255,255,255,0.08);
+      --hairline-strong: rgba(255,255,255,0.14);
 
-    @keyframes popIn {
-      from { transform: scale(0.7); opacity: 0; }
-      to   { transform: scale(1);   opacity: 1; }
-    }
-    @keyframes slideUp {
-      from { transform: translateY(100%); }
-      to   { transform: translateY(0); }
+      /* Glass */
+      --glass-bg: rgba(255,255,255,0.055);
+      --glass-bg-strong: rgba(255,255,255,0.09);
+      --glass-border: rgba(255,255,255,0.14);
+      --glass-highlight: rgba(255,255,255,0.35);
+      --glass-shadow: 0 1px 0 rgba(255,255,255,0.08) inset,
+                      0 -1px 0 rgba(0,0,0,0.25) inset,
+                      0 10px 30px rgba(0,0,0,0.35);
+
+      --radius-xl: 28px;
+      --radius-lg: 22px;
+      --radius-md: 16px;
+      --radius-sm: 12px;
+
+      --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
     }
 
-    /* Notification toast */
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+      font-feature-settings: "ss01", "cv11";
+      -webkit-font-smoothing: antialiased;
+      color: var(--fg);
+      background: var(--bg);
+      min-height: 100vh;
+      overflow-x: hidden;
+      letter-spacing: -0.01em;
+    }
+
+    /* ─── Aurora Background ───────────────────────────────── */
+    .aurora {
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      overflow: hidden;
+      background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255,122,40,0.18), transparent 60%),
+                  #000;
+    }
+    .aurora::before,
+    .aurora::after {
+      content: "";
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      will-change: transform;
+    }
+    .aurora::before {
+      width: 70vw; height: 70vw;
+      left: -20vw; top: -10vw;
+      background: radial-gradient(circle, rgba(255,106,0,0.55), transparent 60%);
+      animation: float1 18s ease-in-out infinite;
+    }
+    .aurora::after {
+      width: 60vw; height: 60vw;
+      right: -20vw; top: 30vh;
+      background: radial-gradient(circle, rgba(255,138,31,0.45), transparent 65%);
+      animation: float2 22s ease-in-out infinite;
+    }
+    .aurora-grain {
+      position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      opacity: 0.06;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+    @keyframes float1 {
+      0%,100% { transform: translate(0,0) scale(1); }
+      50% { transform: translate(10vw, 15vh) scale(1.15); }
+    }
+    @keyframes float2 {
+      0%,100% { transform: translate(0,0) scale(1); }
+      50% { transform: translate(-12vw, -10vh) scale(1.2); }
+    }
+
+    /* ─── Layout ─────────────────────────────────────────── */
+    .shell {
+      max-width: 440px;
+      margin: 0 auto;
+      min-height: 100vh;
+      padding: max(env(safe-area-inset-top), 14px) 18px max(env(safe-area-inset-bottom), 28px);
+      position: relative;
+    }
+
+    /* ─── Glass primitives ───────────────────────────────── */
+    .glass {
+      position: relative;
+      background: var(--glass-bg);
+      backdrop-filter: blur(28px) saturate(180%);
+      -webkit-backdrop-filter: blur(28px) saturate(180%);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--glass-shadow);
+      isolation: isolate;
+    }
+    /* Specular top highlight line */
+    .glass::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 10%; right: 10%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--glass-highlight), transparent);
+      border-radius: inherit;
+      pointer-events: none;
+    }
+    .glass-strong { background: var(--glass-bg-strong); }
+
+    /* ─── Header ─────────────────────────────────────────── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 6px 22px;
+    }
+    .brand {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .brand-mark {
+      width: 38px; height: 38px;
+      border-radius: 12px;
+      display: grid; place-items: center;
+      background: linear-gradient(145deg, var(--accent), var(--accent-2));
+      box-shadow: 0 6px 20px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.35);
+      color: #1a0a00;
+    }
+    .brand-title {
+      font-size: 17px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+    .brand-sub {
+      font-size: 12px;
+      color: var(--fg-dim);
+      margin-top: 1px;
+    }
+    .icon-btn {
+      width: 38px; height: 38px;
+      display: grid; place-items: center;
+      border-radius: 12px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px) saturate(160%);
+      -webkit-backdrop-filter: blur(20px) saturate(160%);
+      border: 1px solid var(--glass-border);
+      color: var(--fg);
+      cursor: pointer;
+      transition: transform 0.2s var(--spring), background 0.2s;
+    }
+    .icon-btn:active { transform: scale(0.9); background: var(--glass-bg-strong); }
+    .icon-row { display: flex; gap: 8px; align-items: center; }
+
+    /* Sync dot */
+    .sync-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 10px var(--accent-glow);
+      animation: pulse 1.2s ease-in-out infinite;
+      margin-right: 4px;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 0.3; transform: scale(0.85); }
+      50% { opacity: 1; transform: scale(1.1); }
+    }
+
+    /* ─── Hero ──────────────────────────────────────────── */
+    .hero {
+      padding: 26px 22px 24px;
+      margin-bottom: 18px;
+      overflow: hidden;
+    }
+    .hero-inner {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 18px;
+    }
+    .hero-label {
+      font-size: 13px;
+      color: var(--fg-dim);
+      letter-spacing: -0.01em;
+    }
+    .hero-amount {
+      font-size: 56px;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      line-height: 0.95;
+      margin-top: 4px;
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .hero-amount .unit {
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--fg-mute);
+      letter-spacing: -0.02em;
+    }
+    .hero-goal {
+      font-size: 13px;
+      color: var(--fg-dim);
+      margin-top: 10px;
+    }
+
+    /* Activity ring */
+    .ring-wrap {
+      position: relative;
+      width: 128px; height: 128px;
+      flex-shrink: 0;
+    }
+    .ring-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+    .ring-track {
+      fill: none;
+      stroke: rgba(255,255,255,0.08);
+      stroke-width: 14;
+    }
+    .ring-fill {
+      fill: none;
+      stroke: url(#ringGrad);
+      stroke-width: 14;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.9s var(--ease);
+      filter: drop-shadow(0 0 8px var(--accent-glow));
+    }
+    .ring-percent {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      color: var(--accent-soft);
+      text-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    /* Progress bar (alt variant) */
+    .bar-outer {
+      height: 14px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 18px;
+      border: 1px solid var(--hairline);
+      position: relative;
+    }
+    .bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-2), var(--accent), var(--accent-soft));
+      border-radius: 999px;
+      transition: width 0.9s var(--ease);
+      box-shadow: 0 0 20px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.4);
+      position: relative;
+    }
+    .bar-fill::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+      animation: shimmer 2.5s linear infinite;
+    }
+    @keyframes shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    /* Streak row */
+    .streak-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid var(--hairline);
+    }
+    .streak-label {
+      font-size: 12px;
+      color: var(--fg-mute);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .streak-value {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent);
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .streak-value.dim { color: var(--fg-mute); }
+
+    /* ─── Reminder banner ──────────────────────────────── */
+    .reminder {
+      padding: 18px 20px;
+      margin-bottom: 18px;
+      background: linear-gradient(135deg, rgba(255,138,31,0.18), rgba(255,106,0,0.12));
+      border: 1px solid rgba(255,138,31,0.35);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .reminder-icon {
+      width: 44px; height: 44px;
+      border-radius: 14px;
+      display: grid; place-items: center;
+      background: linear-gradient(145deg, var(--accent), var(--accent-2));
+      color: #1a0a00;
+      flex-shrink: 0;
+      box-shadow: 0 6px 16px var(--accent-glow);
+    }
+    .reminder-title { font-weight: 600; font-size: 15px; }
+    .reminder-sub { font-size: 13px; color: var(--fg-dim); margin-top: 2px; }
+    .reminder-next { font-size: 11px; color: var(--fg-mute); margin-top: 4px; }
+
+    .ontrack {
+      text-align: center;
+      font-size: 12px;
+      color: var(--fg-mute);
+      margin-bottom: 16px;
+      padding: 0 10px;
+    }
+    .ontrack .time {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* ─── Section label ────────────────────────────────── */
+    .section-label {
+      font-size: 11px;
+      color: var(--fg-mute);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 600;
+      margin: 6px 4px 10px;
+    }
+
+    /* ─── Quick tiles ──────────────────────────────────── */
+    .water-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .water-tile {
+      position: relative;
+      padding: 18px 8px 14px;
+      border-radius: var(--radius-lg);
+      background: var(--glass-bg);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid var(--glass-border);
+      cursor: pointer;
+      transition: transform 0.2s var(--spring), background 0.2s;
+      overflow: hidden;
+      isolation: isolate;
+    }
+    .water-tile::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 10%; right: 10%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+    }
+    .water-tile:active { transform: scale(0.94); background: var(--glass-bg-strong); }
+    .water-tile .ml {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .water-tile .ml-unit {
+      font-size: 12px;
+      color: var(--fg-mute);
+      font-weight: 500;
+      margin-top: 2px;
+    }
+    .water-tile .drop {
+      width: 22px; height: 22px;
+      margin: 0 auto 6px;
+      color: var(--accent);
+      opacity: 0.9;
+    }
+
+    /* Bottle progress */
+    .bottle-strip {
+      padding: 14px 16px;
+      margin-bottom: 18px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .bottle-strip-top {
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .bottle-strip-label {
+      font-size: 12px; color: var(--fg-dim);
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .bottle-strip-count { font-size: 12px; color: var(--fg-dim); font-variant-numeric: tabular-nums; }
+    .bottle-bar {
+      height: 6px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .bottle-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4aa9ff, #74c3ff);
+      border-radius: 999px;
+      transition: width 0.8s var(--ease);
+      box-shadow: 0 0 12px rgba(74,169,255,0.4);
+    }
+
+    /* Other drinks grid */
+    .drinks-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .drink-tile {
+      padding: 14px 14px;
+      border-radius: var(--radius-lg);
+      background: var(--glass-bg);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid var(--glass-border);
+      cursor: pointer;
+      transition: transform 0.2s var(--spring), background 0.2s;
+      display: flex; align-items: center; gap: 12px;
+      position: relative; overflow: hidden;
+    }
+    .drink-tile::before {
+      content: "";
+      position: absolute; top: 0; left: 10%; right: 10%; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+    }
+    .drink-tile:active { transform: scale(0.96); background: var(--glass-bg-strong); }
+    .drink-tile .icon-circle {
+      width: 36px; height: 36px;
+      border-radius: 12px;
+      background: rgba(255,138,31,0.14);
+      border: 1px solid rgba(255,138,31,0.22);
+      display: grid; place-items: center;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+    .drink-tile .drink-body { display: flex; flex-direction: column; }
+    .drink-tile .drink-name { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+    .drink-tile .drink-meta { font-size: 11px; color: var(--fg-mute); margin-top: 1px; }
+
+    /* Primary CTA */
+    .cta {
+      width: 100%;
+      padding: 17px;
+      border-radius: 22px;
+      border: none;
+      background: linear-gradient(145deg, var(--accent), var(--accent-2));
+      color: #1a0a00;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      cursor: pointer;
+      transition: transform 0.2s var(--spring), box-shadow 0.2s;
+      box-shadow: 0 10px 30px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -1px 0 rgba(0,0,0,0.15);
+      margin-bottom: 22px;
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .cta:active { transform: scale(0.97); }
+
+    /* Card */
+    .card {
+      padding: 18px 18px 16px;
+      margin-bottom: 18px;
+    }
+    .card-label {
+      font-size: 12px;
+      color: var(--fg-dim);
+      margin-bottom: 12px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+
+    /* Chart container */
+    .chart-box { position: relative; height: 220px; }
+
+    /* Breakdown list */
+    .breakdown-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 7px 0;
+      font-size: 14px;
+    }
+    .breakdown-row .count {
+      color: var(--accent);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .breakdown-row .name { display: inline-flex; align-items: center; gap: 8px; color: var(--fg); }
+    .breakdown-divider { border-top: 1px solid var(--hairline); margin-top: 6px; padding-top: 6px; }
+    .breakdown-empty { font-size: 13px; color: var(--fg-mute); font-style: italic; }
+
+    /* Log list */
+    .log-header {
+      width: 100%;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 16px 18px;
+      background: none; border: none; color: var(--fg);
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .log-header .left { display: flex; align-items: center; gap: 10px; }
+    .log-header .count-pill {
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid var(--hairline);
+      color: var(--fg-dim);
+      font-variant-numeric: tabular-nums;
+    }
+    .log-chevron { color: var(--fg-mute); transition: transform 0.25s var(--ease); }
+    .log-chevron.open { transform: rotate(180deg); }
+    .log-wrap { padding: 0 14px 14px; display: none; }
+    .log-wrap.open { display: block; }
+    .log-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 13px 14px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.035);
+      border: 1px solid var(--hairline);
+      margin-top: 8px;
+    }
+    .log-item .time { color: var(--accent); font-weight: 600; font-size: 13px; font-variant-numeric: tabular-nums; }
+    .log-item .amount { font-size: 15px; font-weight: 600; margin-left: 12px; }
+    .log-item .name-tag { font-size: 11px; color: var(--fg-mute); margin-left: 6px; }
+    .log-del {
+      background: none; border: none; color: var(--fg-mute);
+      width: 32px; height: 32px; border-radius: 10px;
+      cursor: pointer;
+      display: grid; place-items: center;
+      transition: background 0.15s, color 0.15s;
+    }
+    .log-del:active { background: rgba(239,68,68,0.2); color: #fca5a5; transform: scale(0.9); }
+    .log-empty { text-align: center; color: var(--fg-mute); padding: 22px; font-size: 13px; }
+
+    /* ─── Toast ──────────────────────────────────────────── */
     #toast {
       position: fixed;
-      bottom: 24px;
+      bottom: max(28px, env(safe-area-inset-bottom));
       left: 50%;
-      transform: translateX(-50%) translateY(100px);
-      background: #18181b;
-      border: 1px solid #f97316;
+      transform: translateX(-50%) translateY(140px);
+      background: rgba(24,24,28,0.7);
+      backdrop-filter: blur(30px) saturate(180%);
+      -webkit-backdrop-filter: blur(30px) saturate(180%);
+      border: 1px solid var(--glass-border);
       color: white;
-      padding: 12px 20px;
-      border-radius: 16px;
+      padding: 13px 20px;
+      border-radius: 999px;
       font-size: 14px;
+      font-weight: 500;
       z-index: 9999;
-      transition: transform 0.3s ease;
+      transition: transform 0.4s var(--spring);
       white-space: nowrap;
       max-width: 90vw;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.45);
     }
     #toast.show { transform: translateX(-50%) translateY(0); }
 
-    /* Config badge */
-    .config-badge {
-      display: inline-block;
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      margin-left: 6px;
-      vertical-align: middle;
-    }
-    .config-badge.ok { background: #22c55e; }
-    .config-badge.missing { background: #ef4444; }
-
-    /* Milk modal */
-    #milk-modal {
-      display: none;
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,0.85);
-      z-index: 100;
-      align-items: center;
+    /* ─── Modals (iOS sheet) ─────────────────────────────── */
+    .sheet-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(18px) saturate(140%);
+      -webkit-backdrop-filter: blur(18px) saturate(140%);
+      z-index: 200;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.28s var(--ease);
+      display: flex;
+      align-items: flex-end;
       justify-content: center;
-      padding: 20px;
     }
-    #milk-modal.open { display: flex; }
-    .milk-option {
-      background: #27272a;
-      border: 2px solid #3f3f46;
-      border-radius: 16px;
-      padding: 14px 0;
+    .sheet-backdrop.open { opacity: 1; pointer-events: auto; }
+    .sheet-backdrop.center { align-items: center; padding: 20px; }
+
+    .sheet {
+      width: 100%;
+      max-width: 480px;
+      background:
+        radial-gradient(140% 70% at 50% 0%, rgba(255,138,31,0.28), transparent 58%),
+        radial-gradient(90% 50% at 100% 100%, rgba(255,106,0,0.18), transparent 60%),
+        rgba(22,22,26,0.78);
+      backdrop-filter: blur(40px) saturate(200%);
+      -webkit-backdrop-filter: blur(40px) saturate(200%);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-bottom: none;
+      border-radius: 28px 28px 0 0;
+      padding: 10px 22px max(26px, env(safe-area-inset-bottom));
+      max-height: 92vh;
+      overflow-y: auto;
+      transform: translateY(110%);
+      transition: transform 0.4s var(--spring);
+      box-shadow: 0 -20px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08);
+      position: relative;
+      isolation: isolate;
+    }
+    .sheet::before {
+      content: "";
+      position: absolute; top: 0; left: 15%; right: 15%; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+      pointer-events: none;
+    }
+    .sheet::after {
+      content: "";
+      position: absolute; inset: 0;
+      border-radius: inherit;
+      background: radial-gradient(100% 40% at 50% 0%, rgba(255,255,255,0.06), transparent 70%);
+      pointer-events: none;
+      z-index: -1;
+    }
+    .sheet-backdrop.open .sheet { transform: translateY(0); }
+    .sheet.center-sheet {
+      border-radius: 28px;
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 28px 24px;
+      max-width: 380px;
+      transform: translateY(40px) scale(0.9);
+      opacity: 0;
+      transition: transform 0.4s var(--spring), opacity 0.3s;
+    }
+    .sheet-backdrop.open .sheet.center-sheet { transform: translateY(0) scale(1); opacity: 1; }
+
+    .sheet-grabber {
+      width: 38px; height: 5px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 999px;
+      margin: 8px auto 14px;
+    }
+    .sheet-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .sheet-close {
+      width: 34px; height: 34px; border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: var(--fg);
+      cursor: pointer;
+      display: grid; place-items: center;
+      font-family: inherit;
       font-size: 15px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.15);
+      transition: background 0.15s, transform 0.1s;
+    }
+    .sheet-close:hover { background: rgba(255,255,255,0.14); }
+    .sheet-close:active { transform: scale(0.92); }
+    .sheet-title {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      background: linear-gradient(180deg, #fff, rgba(255,255,255,0.75));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* Form fields */
+    .field-label {
+      display: block;
+      font-size: 12px;
+      color: var(--fg-dim);
+      margin-bottom: 8px;
+      letter-spacing: -0.01em;
+    }
+    .field {
+      width: 100%;
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      padding: 14px 16px;
+      color: var(--fg);
+      font-family: inherit;
+      font-size: 17px;
+      font-weight: 600;
+      outline: none;
+      appearance: none;
+      -webkit-appearance: none;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .field.big { font-size: 26px; padding: 16px 18px; }
+    .field:focus { border-color: var(--accent); background: rgba(255,138,31,0.07); }
+    .field-select {
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid var(--glass-border);
+      border-radius: 14px;
+      padding: 14px 10px;
+      color: var(--fg);
+      font-family: inherit;
+      font-size: 18px;
+      font-weight: 600;
+      text-align: center;
+      text-align-last: center;
+      outline: none;
+      appearance: none;
+      -webkit-appearance: none;
+      width: 100%;
+      font-variant-numeric: tabular-nums;
+    }
+    .field-select option { background: #18181c; color: var(--fg); }
+    .time-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; }
+    .time-sep { color: var(--fg-mute); font-weight: 700; }
+    .form-group { margin-bottom: 16px; }
+    .form-group-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    .secondary-btn {
+      width: 100%;
+      padding: 13px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--hairline-strong);
+      color: var(--fg);
+      font-family: inherit;
+      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
-      transition: all 0.15s;
+    }
+    .secondary-btn:active { background: rgba(255,255,255,0.1); }
+
+    .danger-btn-text { color: #fca5a5; }
+
+    /* Stats */
+    .stats-tabs {
+      display: flex; gap: 4px;
+      margin-top: 6px;
+      padding: 4px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid var(--glass-border);
+      border-radius: 14px;
+      position: relative;
+    }
+    .stats-tabs::before {
+      content: "";
+      position: absolute; top: 0; left: 10%; right: 10%; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    }
+    .stats-tab {
+      flex: 1;
+      padding: 10px 0;
+      border: none;
+      background: none;
+      color: var(--fg-dim);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s, transform 0.1s;
+    }
+    .stats-tab:active { transform: scale(0.96); }
+    .stats-tab.active {
+      background: linear-gradient(145deg, var(--accent), var(--accent-2));
+      color: #1a0a00;
+      box-shadow: 0 4px 12px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.3);
+    }
+
+    .stat-card {
+      position: relative;
+      padding: 14px 16px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid var(--glass-border);
+      border-radius: 18px;
+      overflow: hidden;
+      isolation: isolate;
+    }
+    .stat-card::before {
+      content: "";
+      position: absolute; top: 0; left: 10%; right: 10%; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+    }
+    .stat-card .lbl { font-size: 11px; color: var(--fg-mute); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+    .stat-card .val { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+    .stat-card .val .sm { font-size: 12px; color: var(--fg-mute); font-weight: 500; }
+
+    /* Coffee / Milk options */
+    .pill-option {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--hairline-strong);
+      border-radius: 14px;
+      padding: 13px 10px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--fg);
+      cursor: pointer;
+      transition: transform 0.15s var(--spring), background 0.15s, border-color 0.15s;
       text-align: center;
     }
-    .milk-option:hover { border-color: #f97316; background: #3f3f46; }
-    .milk-option.no { border-color: #52525b; color: #a1a1aa; }
-    .milk-option.no:hover { border-color: #ef4444; color: #fca5a5; background: #27272a; }
-    .stats-tab { background: #27272a; color: #a1a1aa; }
-    .stats-tab.active-tab { background: #ea580c; color: white; }
+    .pill-option:active { transform: scale(0.95); background: rgba(255,138,31,0.15); border-color: var(--accent); }
+    .pill-option.no { color: var(--fg-dim); }
+    .pill-option.no:active { background: rgba(239,68,68,0.12); border-color: #ef4444; color: #fca5a5; }
+    .pill-option small { display: block; font-size: 11px; color: var(--fg-mute); margin-top: 2px; font-weight: 500; }
+
+    /* Success modal */
+    .success-emoji {
+      font-size: 72px;
+      line-height: 1;
+      margin-bottom: 12px;
+      filter: drop-shadow(0 8px 24px var(--accent-glow));
+    }
+    .success-title {
+      font-size: 24px; font-weight: 700; margin-bottom: 6px; letter-spacing: -0.02em;
+    }
+    .success-sub { font-size: 13px; color: var(--fg-dim); margin-bottom: 22px; }
+    .streak-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 20px;
+      border-radius: 999px;
+      background: linear-gradient(145deg, var(--accent), var(--accent-2));
+      color: #1a0a00;
+      font-size: 16px; font-weight: 700;
+      margin-bottom: 20px;
+      box-shadow: 0 10px 30px var(--accent-glow);
+    }
+
+    /* Confirm modal */
+    .confirm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .btn-lg {
+      padding: 15px;
+      border-radius: 16px;
+      border: 1px solid var(--hairline-strong);
+      background: rgba(255,255,255,0.05);
+      color: var(--fg);
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.15s var(--spring);
+    }
+    .btn-lg:active { transform: scale(0.96); }
+    .btn-lg.primary {
+      background: linear-gradient(145deg, var(--accent), var(--accent-2));
+      color: #1a0a00;
+      border: none;
+      box-shadow: 0 8px 24px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.3);
+    }
+
+    /* Liquid splash animation for tiles */
+    @keyframes splash {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.06); }
+      100% { transform: scale(1); }
+    }
+    .splash { animation: splash 0.5s var(--spring); }
+
+    /* Tweaks panel */
+    .tweak-panel {
+      position: fixed;
+      right: 14px; bottom: 14px;
+      z-index: 500;
+      width: 260px;
+      padding: 16px;
+      background: rgba(24,24,28,0.78);
+      backdrop-filter: blur(30px) saturate(180%);
+      -webkit-backdrop-filter: blur(30px) saturate(180%);
+      border: 1px solid var(--glass-border);
+      border-radius: 20px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+      display: none;
+    }
+    .tweak-panel.open { display: block; }
+    .tweak-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .tweak-title { font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
+    .tweak-close { background: none; border: none; color: var(--fg-dim); cursor: pointer; font-family: inherit; font-size: 18px; }
+    .tweak-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+    .tweak-row-label { font-size: 11px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.08em; }
+    .seg { display: flex; padding: 3px; background: rgba(255,255,255,0.06); border: 1px solid var(--hairline); border-radius: 12px; }
+    .seg-btn {
+      flex: 1;
+      padding: 7px 0;
+      border: none;
+      background: none;
+      color: var(--fg-dim);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 9px;
+      cursor: pointer;
+    }
+    .seg-btn.active {
+      background: rgba(255,255,255,0.1);
+      color: var(--fg);
+    }
+
+    /* Hide elements utility */
+    .hidden { display: none !important; }
+
+    /* SVG icon sizing */
+    .ic { width: 20px; height: 20px; stroke-width: 1.8; }
+    .ic-sm { width: 16px; height: 16px; stroke-width: 2; }
+    .ic-lg { width: 24px; height: 24px; stroke-width: 1.8; }
   </style>
 </head>
-<body class="bg-zinc-950 text-white min-h-screen">
-  <div class="max-w-md mx-auto bg-zinc-950 min-h-screen">
+<body>
+  <div class="aurora"></div>
+  <div class="aurora-grain"></div>
 
-    <!-- Header -->
-    <div class="bg-zinc-950 px-5 pt-5 pb-4 flex items-center justify-between border-b-2 border-orange-600">
-      <div class="flex items-start gap-3">
-        <div class="w-1 self-stretch bg-orange-500 rounded-full"></div>
+  <!-- SVG defs -->
+  <svg width="0" height="0" style="position:absolute">
+    <defs>
+      <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#ff6a00"/>
+        <stop offset="50%" stop-color="#ff8a1f"/>
+        <stop offset="100%" stop-color="#ffb070"/>
+      </linearGradient>
+    </defs>
+  </svg>
+
+  <div class="shell">
+
+    <!-- ─── Topbar ─── -->
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-mark">
+          <svg class="ic-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2.5s-7 8-7 13a7 7 0 0014 0c0-5-7-13-7-13z"/>
+          </svg>
+        </div>
         <div>
-          <h1 class="text-2xl font-bold tracking-widest uppercase text-white leading-tight">Wasser Tracker</h1>
-          <p class="text-zinc-500 text-xs tracking-widest mt-0.5">Tägliches Wasser Tracking</p>
+          <div class="brand-title">Wasser Tracker</div>
+          <div class="brand-sub">Täglich im Fluss</div>
         </div>
       </div>
-      <div class="flex items-center gap-3">
-        <span id="sync-indicator" class="text-xs px-2 py-1 rounded-full bg-zinc-800 hidden">⏳</span>
-        <!-- App Switcher -->
-        <div class="relative">
-          <button onclick="toggleAppSwitcher()" class="text-2xl">⠿</button>
-          <div id="app-switcher" class="hidden absolute right-0 top-10 bg-zinc-900 border border-zinc-700 rounded-2xl p-2 z-50 w-44 shadow-xl">
-            <a href="https://chris9100h.github.io/Weight-Tracker/" class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-800 transition">
-              <span class="text-xl">⚖️</span>
-              <span class="text-sm font-medium text-zinc-300">Weight Tracker</span>
-            </a>
-            <a href="https://chris9100h.github.io/Glucose-Log/" class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-800 transition">
-              <span class="text-xl">🩸</span>
-              <span class="text-sm font-medium text-zinc-300">Glucose Log</span>
-            </a>
-            <div class="border-t border-zinc-700 mt-1 pt-1">
-              <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-zinc-800">
-                <span class="text-xl">💧</span>
-                <span class="text-sm font-medium text-orange-400">Wasser Tracker</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <button onclick="openStats()" class="text-2xl">📊</button>
-        <button onclick="toggleSettings()" class="text-2xl">⚙️</button>
-      </div>
-    </div>
-
-    <div class="p-5">
-      <!-- Aktueller Stand -->
-      <div class="bg-zinc-900 rounded-3xl p-6 mb-6 border border-orange-900">
-        <div class="flex justify-between items-baseline mb-3">
-          <div>
-            <p class="text-zinc-400 text-sm">Heute getrunken</p>
-            <p id="drunk-amount" class="text-5xl font-bold">0 <span class="text-3xl text-zinc-500">ml</span></p>
-          </div>
-          <div class="text-right">
-            <p id="goal-text" class="text-zinc-400 text-sm">von 2000 ml</p>
-            <p id="progress-percent" class="text-5xl font-bold orange-accent">0%</p>
-          </div>
-        </div>
-        <!-- Winstreak Badge -->
-        <div id="winstreak-badge" class="flex items-center justify-between mb-2">
-          <span class="text-xs text-zinc-500">Winstreak</span>
-          <span id="winstreak-display" class="text-sm font-bold text-orange-400">🔥 0 Tage</span>
-        </div>
-        <div class="h-4 bg-zinc-800 rounded-2xl overflow-hidden">
-          <div id="progress-bar" class="h-full progress-orange rounded-2xl transition-all duration-500" style="width: 0%"></div>
-        </div>
-      </div>
-
-      <!-- Reminder -->
-      <div id="reminder-banner" class="hidden bg-orange-600 text-black rounded-3xl p-5 mb-6 flex gap-4 items-center">
-        <span class="text-4xl">⚠️</span>
-        <div>
-          <p class="font-semibold text-lg">Du liegst zurück!</p>
-          <p id="reminder-subtext" class="text-sm">Trink jetzt mindestens 250 ml</p>
-          <p id="reminder-next-push" class="text-xs mt-1 opacity-75"></p>
-        </div>
-      </div>
-
-      <!-- On-track Info -->
-      <div id="ontrack-info" class="hidden text-center text-zinc-500 text-xs mb-4">
-        📉 Ohne weiteres Trinken fällst du um <span id="ontrack-time" class="text-orange-400 font-semibold"></span> unter die Sollkurve
-      </div>
-
-      <!-- Quick Buttons -->
-      <div class="mb-6">
-        <p class="text-zinc-400 text-sm mb-3">Wassermengen</p>
-        <div class="grid grid-cols-4 gap-3 mb-4">
-          <button onclick="askConfirm(250, null, null)"  class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">250 ml</button>
-          <button onclick="askConfirm(500, null, null)"  class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">500 ml</button>
-          <button onclick="askConfirm(1000, null, null)" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">1000 ml</button>
-          <button onclick="askConfirm(1500, null, null)" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-4 rounded-2xl text-sm font-medium active:scale-95 transition">1500 ml</button>
-        </div>
-
-        <!-- Flasche Progress -->
-        <div id="bottle-progress-row" class="hidden bg-zinc-900 rounded-2xl p-4 border border-orange-900 mb-4">
-          <div class="flex justify-between items-center mb-2">
-            <span class="text-zinc-400 text-xs">🍶 Aktuelle Flasche</span>
-            <span id="bottle-progress-text" class="text-zinc-400 text-xs"></span>
-          </div>
-          <div class="h-2 bg-zinc-800 rounded-full overflow-hidden">
-            <div id="bottle-progress-bar" class="h-full rounded-full transition-all duration-500" style="width: 0%; background: linear-gradient(90deg, #3b82f6, #60a5fa);"></div>
-          </div>
-        </div>
-
-        <p class="text-zinc-400 text-sm mb-3">Andere Getränke</p>
-        <div class="grid grid-cols-2 gap-3">
-          <button onclick="addKaffee()"       class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">☕ Kaffee<br><span class="text-xs text-zinc-500">(40–230+ ml)</span></button>
-          <button onclick="askConfirm(250, 'Energy Drink', 'other')" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">⚡ Energy Drink<br><span class="text-xs text-zinc-500">(250 ml)</span></button>
-          <button onclick="askConfirm(300, 'Whey Shake', 'other')"   class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🥤 Whey Shake<br><span class="text-xs text-zinc-500">(300 ml)</span></button>
-          <button onclick="askConfirm(500, '500ml Glas', 'other')"   class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🥛 500 ml Glas<br><span class="text-xs text-zinc-500">(500 ml)</span></button>
-          <button onclick="askConfirm(650, '650ml Glas', 'other')"   class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🥛 650 ml Glas<br><span class="text-xs text-zinc-500">(650 ml)</span></button>
-          <button onclick="askConfirm(1700, 'Barbarian Jug', 'other')" class="bg-zinc-900 hover:bg-zinc-800 border border-orange-800 py-3.5 rounded-2xl text-sm font-medium active:scale-95 transition">🏺 Barbarian Jug<br><span class="text-xs text-zinc-500">(1700 ml)</span></button>
-        </div>
-      </div>
-
-      <button onclick="showCustomAdd()"
-              class="w-full bg-orange-600 hover:bg-orange-500 py-4 rounded-3xl text-lg font-semibold mb-6 active:scale-95 transition">
-        + Eigener Eintrag (ml)
-      </button>
-
-      <!-- Chart -->
-      <div class="bg-zinc-900 rounded-3xl p-5 mb-6 border border-orange-900">
-        <p class="text-zinc-400 mb-4 text-sm">Verlauf • Soll-Linie vs. Ist</p>
-        <div id="chart-container">
-          <canvas id="waterChart"></canvas>
-        </div>
-      </div>
-
-      <!-- Mini-Statistiken -->
-      <div class="mb-6">
-        <div class="bg-zinc-900 rounded-2xl p-4 border border-orange-900">
-          <p class="text-zinc-400 text-xs mb-3">☕ Andere Getränke heute</p>
-          <div id="other-drinks-breakdown" class="text-sm text-zinc-300">
-            <span class="text-zinc-600 italic">Noch nichts eingetragen</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Heutige Einträge -->
-      <div class="bg-zinc-900 rounded-2xl border border-orange-900 mb-6 overflow-hidden">
-        <button onclick="toggleLogList()" class="w-full flex justify-between items-center px-4 py-3">
-          <div class="flex items-center gap-2">
-            <span class="text-zinc-400 text-sm">Heutige Einträge</span>
-            <span id="total-entries" class="text-xs bg-zinc-800 px-3 py-1 rounded-2xl"></span>
-          </div>
-          <span id="log-chevron" class="text-zinc-500 transition-transform duration-200">▼</span>
+      <div class="icon-row">
+        <span id="sync-indicator" class="sync-dot hidden"></span>
+        <button class="icon-btn" onclick="openStats()" aria-label="Statistik">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6" rx="1"/><rect x="12" y="8" width="3" height="10" rx="1"/><rect x="17" y="5" width="3" height="13" rx="1"/>
+          </svg>
         </button>
-        <div id="log-list-wrapper" class="hidden px-4 pb-4">
-          <div id="log-list" class="space-y-3"></div>
-        </div>
+        <button class="icon-btn" onclick="toggleSettings()" aria-label="Einstellungen">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+          </svg>
+        </button>
       </div>
     </div>
 
-    <!-- Settings Modal -->
-    <div id="settings-modal" class="hidden fixed inset-0 bg-black/80 flex items-end z-50">
-      <div class="bg-zinc-900 rounded-t-3xl w-full p-6 max-h-[90vh] overflow-auto">
-        <div class="flex justify-between mb-6">
-          <h2 class="text-2xl font-semibold">Einstellungen</h2>
-          <button onclick="toggleSettings()" class="text-4xl leading-none text-zinc-400">×</button>
+    <!-- ─── Hero ─── -->
+    <div class="glass hero" id="hero-card">
+      <div class="hero-inner">
+        <div>
+          <div class="hero-label">Heute getrunken</div>
+          <div class="hero-amount">
+            <span id="drunk-amount">0</span>
+            <span class="unit">ml</span>
+          </div>
+          <div class="hero-goal">von <span id="goal-text-num">2000</span> ml</div>
         </div>
-        <div class="space-y-6">
 
-          <!-- Tracker-Einstellungen -->
-          <div>
-            <label class="block text-zinc-400 text-sm mb-2">Tägliches Ziel (ml)</label>
-            <input id="goal-input" type="number" value="2000" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 text-3xl">
-          </div>
-          <div class="space-y-3">
-            <div>
-              <label class="block text-zinc-400 text-sm mb-2">Startzeit</label>
-              <div class="flex gap-2 items-center">
-                <select id="start-hour" class="flex-1 bg-zinc-800 rounded-2xl px-3 py-3 text-center"></select>
-                <span class="text-zinc-400 font-bold">:</span>
-                <select id="start-min" class="flex-1 bg-zinc-800 rounded-2xl px-3 py-3 text-center">
-                  <option value="00">00</option>
-                  <option value="30">30</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label class="block text-zinc-400 text-sm mb-2">Endzeit</label>
-              <div class="flex gap-2 items-center">
-                <select id="end-hour" class="flex-1 bg-zinc-800 rounded-2xl px-3 py-3 text-center"></select>
-                <span class="text-zinc-400 font-bold">:</span>
-                <select id="end-min" class="flex-1 bg-zinc-800 rounded-2xl px-3 py-3 text-center">
-                  <option value="00">00</option>
-                  <option value="30">30</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <!-- Pushover Test -->
-          <div class="border-t border-zinc-700 pt-4">
-            <button onclick="testPushover()"
-                    class="w-full bg-zinc-700 hover:bg-zinc-600 py-3 rounded-2xl text-sm font-medium transition">
-              🔔 Test-Benachrichtigung senden
-            </button>
-          </div>
-
-          <button onclick="saveSettings()" class="w-full bg-orange-600 py-4 rounded-3xl text-lg font-semibold mt-4">
-            Speichern
-          </button>
+        <!-- Ring -->
+        <div class="ring-wrap" id="ring-wrap">
+          <svg viewBox="0 0 120 120">
+            <circle class="ring-track" cx="60" cy="60" r="50"/>
+            <circle class="ring-fill" cx="60" cy="60" r="50"
+                    stroke-dasharray="314.16" stroke-dashoffset="314.16"
+                    id="ring-fill"/>
+          </svg>
+          <div class="ring-percent" id="progress-percent">0%</div>
         </div>
+      </div>
+
+      <!-- Bar (alt) -->
+      <div class="bar-outer hidden" id="bar-outer">
+        <div class="bar-fill" id="progress-bar" style="width:0%"></div>
+      </div>
+
+      <!-- Streak -->
+      <div class="streak-row">
+        <span class="streak-label">Streak</span>
+        <span id="winstreak-display" class="streak-value dim">
+          <svg class="ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5C8.5 16 9.5 17 12 17s4-1 4-3c0-1-.5-2-1.5-2.5C15 10 14 8.5 14 7c-1.5 1-2 2.5-2 4-1-0.5-1.5-1.5-1.5-3-1.5 1.5-2 3-2 4.5 0 1 .5 1.5 1 2z"/></svg>
+          <span id="winstreak-text">0 Tage</span>
+        </span>
       </div>
     </div>
 
+    <!-- ─── Reminder ─── -->
+    <div id="reminder-banner" class="glass reminder hidden">
+      <div class="reminder-icon">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+      </div>
+      <div>
+        <div class="reminder-title">Du liegst zurück</div>
+        <div id="reminder-subtext" class="reminder-sub">Trink jetzt mindestens 250 ml</div>
+        <div id="reminder-next-push" class="reminder-next"></div>
+      </div>
+    </div>
+
+    <!-- ─── On-track info ─── -->
+    <div id="ontrack-info" class="ontrack hidden">
+      Ohne weiteres Trinken fällst du um <span id="ontrack-time" class="time"></span> unter die Sollkurve
+    </div>
+
+    <!-- ─── Wassermengen ─── -->
+    <div class="section-label">Wassermengen</div>
+    <div class="water-grid">
+      <button class="water-tile" onclick="askConfirm(250, null, null)">
+        <svg class="drop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5s-7 8-7 13a7 7 0 0014 0c0-5-7-13-7-13z"/></svg>
+        <div class="ml">250</div>
+        <div class="ml-unit">ml</div>
+      </button>
+      <button class="water-tile" onclick="askConfirm(500, null, null)">
+        <svg class="drop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5s-7 8-7 13a7 7 0 0014 0c0-5-7-13-7-13z"/></svg>
+        <div class="ml">500</div>
+        <div class="ml-unit">ml</div>
+      </button>
+      <button class="water-tile" onclick="askConfirm(1000, null, null)">
+        <svg class="drop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5s-7 8-7 13a7 7 0 0014 0c0-5-7-13-7-13z"/></svg>
+        <div class="ml">1000</div>
+        <div class="ml-unit">ml</div>
+      </button>
+      <button class="water-tile" onclick="askConfirm(1500, null, null)">
+        <svg class="drop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5s-7 8-7 13a7 7 0 0014 0c0-5-7-13-7-13z"/></svg>
+        <div class="ml">1500</div>
+        <div class="ml-unit">ml</div>
+      </button>
+    </div>
+
+    <!-- Bottle progress -->
+    <div id="bottle-progress-row" class="glass bottle-strip hidden">
+      <div class="bottle-strip-top">
+        <span class="bottle-strip-label">
+          <svg class="ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2h4v3l1 2v4H9V7l1-2z"/><path d="M9 11h6v9a2 2 0 01-2 2h-2a2 2 0 01-2-2v-9z"/></svg>
+          Aktuelle Flasche
+        </span>
+        <span id="bottle-progress-text" class="bottle-strip-count"></span>
+      </div>
+      <div class="bottle-bar">
+        <div id="bottle-progress-bar" class="bottle-bar-fill" style="width:0%"></div>
+      </div>
+    </div>
+
+    <!-- ─── Andere Getränke ─── -->
+    <div class="section-label">Andere Getränke</div>
+    <div class="drinks-grid">
+      <button class="drink-tile" onclick="addKaffee()">
+        <span class="icon-circle">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13v7a5 5 0 01-5 5H9a5 5 0 01-5-5V8z"/><path d="M17 10h2a3 3 0 010 6h-2"/><path d="M7 4v2M11 4v2M15 4v2"/></svg>
+        </span>
+        <div class="drink-body">
+          <div class="drink-name">Kaffee</div>
+          <div class="drink-meta">40–230+ ml</div>
+        </div>
+      </button>
+      <button class="drink-tile" onclick="askConfirm(250, 'Energy Drink', 'other')">
+        <span class="icon-circle">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg>
+        </span>
+        <div class="drink-body">
+          <div class="drink-name">Energy Drink</div>
+          <div class="drink-meta">250 ml</div>
+        </div>
+      </button>
+      <button class="drink-tile" onclick="askConfirm(300, 'Whey Shake', 'other')">
+        <span class="icon-circle">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12l-1 4H7L6 2z"/><path d="M7 6h10l-1 14a2 2 0 01-2 2h-4a2 2 0 01-2-2L7 6z"/><path d="M9 12h6"/></svg>
+        </span>
+        <div class="drink-body">
+          <div class="drink-name">Whey Shake</div>
+          <div class="drink-meta">300 ml</div>
+        </div>
+      </button>
+      <button class="drink-tile" onclick="askConfirm(500, '500ml Glas', 'other')">
+        <span class="icon-circle">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l-2 18a1 1 0 01-1 1H9a1 1 0 01-1-1L6 3z"/><path d="M7 10h10"/></svg>
+        </span>
+        <div class="drink-body">
+          <div class="drink-name">500 ml Glas</div>
+          <div class="drink-meta">500 ml</div>
+        </div>
+      </button>
+      <button class="drink-tile" onclick="askConfirm(650, '650ml Glas', 'other')">
+        <span class="icon-circle">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l-2 18a1 1 0 01-1 1H9a1 1 0 01-1-1L6 3z"/><path d="M7 10h10"/></svg>
+        </span>
+        <div class="drink-body">
+          <div class="drink-name">650 ml Glas</div>
+          <div class="drink-meta">650 ml</div>
+        </div>
+      </button>
+      <button class="drink-tile" onclick="askConfirm(1700, 'Barbarian Jug', 'other')">
+        <span class="icon-circle">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M7 6h10v14a2 2 0 01-2 2H9a2 2 0 01-2-2V6z"/><path d="M8 6V4a4 4 0 018 0v2"/><path d="M17 11h2a2 2 0 010 4h-2"/></svg>
+        </span>
+        <div class="drink-body">
+          <div class="drink-name">Barbarian Jug</div>
+          <div class="drink-meta">1700 ml</div>
+        </div>
+      </button>
+    </div>
+
+    <!-- ─── CTA ─── -->
+    <button class="cta" onclick="showCustomAdd()">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+      Eigener Eintrag
+    </button>
+
+    <!-- ─── Chart ─── -->
+    <div class="glass card">
+      <div class="card-label">
+        <span>Verlauf · Soll vs. Ist</span>
+      </div>
+      <div class="chart-box">
+        <canvas id="waterChart"></canvas>
+      </div>
+    </div>
+
+    <!-- ─── Breakdown ─── -->
+    <div class="glass card">
+      <div class="card-label">
+        <span>Andere Getränke heute</span>
+      </div>
+      <div id="other-drinks-breakdown">
+        <div class="breakdown-empty">Noch nichts eingetragen</div>
+      </div>
+    </div>
+
+    <!-- ─── Log list ─── -->
+    <div class="glass" style="margin-bottom:22px">
+      <button class="log-header" onclick="toggleLogList()">
+        <span class="left">
+          <span style="font-size:13px;color:var(--fg-dim)">Heutige Einträge</span>
+          <span class="count-pill" id="total-entries">0</span>
+        </span>
+        <svg class="ic-sm log-chevron" id="log-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div id="log-list-wrapper" class="log-wrap">
+        <div id="log-list"></div>
+      </div>
+    </div>
   </div>
 
-  <!-- Stats Sheet -->
-  <div id="stats-modal" class="hidden fixed inset-0 bg-black/80 flex items-end z-50">
-    <div class="bg-zinc-900 rounded-t-3xl w-full max-h-[92vh] overflow-auto" style="animation: slideUp 0.3s ease-out">
-      <div class="sticky top-0 bg-zinc-900 rounded-t-3xl px-6 pt-6 pb-4 border-b border-zinc-800 z-10">
-        <div class="flex justify-between items-center mb-4">
-          <h2 class="text-2xl font-semibold">📊 Statistiken</h2>
-          <button onclick="closeStats()" class="text-4xl leading-none text-zinc-400">×</button>
-        </div>
-        <!-- Zeitraum Tabs -->
-        <div class="flex gap-2">
-          <button onclick="setStatsPeriod(7)"   id="stats-tab-7"      class="stats-tab active-tab px-4 py-2 rounded-xl text-sm font-medium transition">7T</button>
-          <button onclick="setStatsPeriod(30)"  id="stats-tab-30"     class="stats-tab px-4 py-2 rounded-xl text-sm font-medium transition">30T</button>
-          <button onclick="setStatsPeriod(90)"  id="stats-tab-90"     class="stats-tab px-4 py-2 rounded-xl text-sm font-medium transition">90T</button>
-          <button onclick="setStatsPeriod('custom')" id="stats-tab-custom" class="stats-tab px-4 py-2 rounded-xl text-sm font-medium transition">Custom</button>
-        </div>
-        <!-- Custom Datepicker -->
-        <div id="stats-custom-range" class="hidden mt-3 space-y-2">
-          <div>
-            <label class="text-zinc-400 text-xs mb-1 block">Von</label>
-            <input id="stats-from" type="date" class="w-full bg-zinc-800 rounded-xl px-3 py-2 text-sm">
-          </div>
-          <div>
-            <label class="text-zinc-400 text-xs mb-1 block">Bis</label>
-            <input id="stats-to" type="date" class="w-full bg-zinc-800 rounded-xl px-3 py-2 text-sm">
-          </div>
-          <button onclick="loadCustomStats()" class="w-full bg-orange-600 py-2 rounded-xl text-sm font-medium">Anzeigen</button>
+  <!-- ─── Settings Sheet ─── -->
+  <div id="settings-modal" class="sheet-backdrop">
+    <div class="sheet">
+      <div class="sheet-grabber"></div>
+      <div class="sheet-header">
+        <div class="sheet-title">Einstellungen</div>
+        <button class="sheet-close" onclick="toggleSettings()">✕</button>
+      </div>
+      <div class="form-group">
+        <label class="field-label">Tägliches Ziel (ml)</label>
+        <input id="goal-input" type="number" value="2000" class="field big">
+      </div>
+      <div class="form-group">
+        <label class="field-label">Startzeit</label>
+        <div class="time-row">
+          <select id="start-hour" class="field-select"></select>
+          <span class="time-sep">:</span>
+          <select id="start-min" class="field-select">
+            <option value="00">00</option>
+            <option value="30">30</option>
+          </select>
         </div>
       </div>
+      <div class="form-group">
+        <label class="field-label">Endzeit</label>
+        <div class="time-row">
+          <select id="end-hour" class="field-select"></select>
+          <span class="time-sep">:</span>
+          <select id="end-min" class="field-select">
+            <option value="00">00</option>
+            <option value="30">30</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:22px">
+        <button class="secondary-btn" onclick="testPushover()">
+          🔔 Test-Benachrichtigung senden
+        </button>
+      </div>
+      <button class="cta" style="margin-bottom:0" onclick="saveSettings()">Speichern</button>
+    </div>
+  </div>
 
-      <div class="px-6 py-5 space-y-6" id="stats-content">
-        <p class="text-zinc-500 text-center py-8">Lade Daten...</p>
+  <!-- ─── Stats Sheet ─── -->
+  <div id="stats-modal" class="sheet-backdrop">
+    <div class="sheet">
+      <div class="sheet-grabber"></div>
+      <div class="sheet-header">
+        <div class="sheet-title">Statistiken</div>
+        <button class="sheet-close" onclick="closeStats()">✕</button>
+      </div>
+      <div class="stats-tabs">
+        <button id="stats-tab-7" class="stats-tab active" onclick="setStatsPeriod(7)">7T</button>
+        <button id="stats-tab-30" class="stats-tab" onclick="setStatsPeriod(30)">30T</button>
+        <button id="stats-tab-90" class="stats-tab" onclick="setStatsPeriod(90)">90T</button>
+        <button id="stats-tab-custom" class="stats-tab" onclick="setStatsPeriod('custom')">Custom</button>
+      </div>
+      <div id="stats-custom-range" class="hidden" style="margin-top:14px; display:flex; flex-direction:column; gap:10px;">
+        <div>
+          <label class="field-label">Von</label>
+          <input id="stats-from" type="date" class="field" style="font-size:15px; padding:11px 14px;">
+        </div>
+        <div>
+          <label class="field-label">Bis</label>
+          <input id="stats-to" type="date" class="field" style="font-size:15px; padding:11px 14px;">
+        </div>
+        <button class="secondary-btn" onclick="loadCustomStats()" style="background: linear-gradient(145deg, var(--accent), var(--accent-2)); color:#1a0a00; border:none; font-weight:700;">Anzeigen</button>
+      </div>
+      <div id="stats-content" style="margin-top:18px">
+        <p style="color:var(--fg-mute); text-align:center; padding:40px 0;">Lade Daten…</p>
       </div>
     </div>
   </div>
 
+  <!-- ─── Toast ─── -->
   <div id="toast"></div>
 
-  <!-- Erfolgs-Modal -->
-  <div id="success-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:200;align-items:center;justify-content:center;padding:20px;">
-    <div class="bg-zinc-900 rounded-3xl p-8 w-full max-w-sm border border-orange-500 text-center" style="animation: popIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275)">
-      <div id="success-emoji" style="font-size:72px;line-height:1;margin-bottom:16px;">🏆</div>
-      <h2 id="success-title" class="text-2xl font-bold mb-2">Tagesziel erreicht!</h2>
-      <p id="success-subtitle" class="text-zinc-400 mb-6 text-sm"></p>
-      <div id="success-streak" class="bg-orange-600 rounded-2xl py-3 px-6 mb-6 inline-block">
-        <span class="text-2xl font-bold">🔥 <span id="success-streak-count">1</span> Tage Streak!</span>
+  <!-- ─── Success modal ─── -->
+  <div id="success-modal" class="sheet-backdrop center">
+    <div class="sheet center-sheet" style="text-align:center;">
+      <div class="success-emoji" id="success-emoji">🏆</div>
+      <div class="success-title" id="success-title">Tagesziel erreicht!</div>
+      <div class="success-sub" id="success-subtitle"></div>
+      <div class="streak-pill">
+        🔥 <span id="success-streak-count">1</span> Tage Streak
       </div>
-      <br>
-      <button onclick="closeSuccessModal()" class="bg-zinc-700 hover:bg-zinc-600 px-8 py-3 rounded-2xl font-medium transition">
-        Weiter so! 💪
-      </button>
-    </div>
-  </div>
-
-  <!-- Bestätigungs-Modal -->
-  <div id="confirm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:300;align-items:flex-end;justify-content:center;">
-    <div class="bg-zinc-900 rounded-t-3xl w-full p-6 border-t border-orange-800" style="animation: slideUp 0.25s ease-out">
-      <p class="text-zinc-400 text-xs uppercase tracking-widest mb-1">Bestätigen</p>
-      <h3 id="confirm-label" class="text-2xl font-bold mb-6">+250 ml</h3>
-      <div class="grid grid-cols-2 gap-3">
-        <button onclick="confirmAdd(false)" class="bg-zinc-700 hover:bg-zinc-600 py-4 rounded-2xl font-semibold transition active:scale-95">✕ Abbrechen</button>
-        <button onclick="confirmAdd(true)"  class="bg-orange-600 hover:bg-orange-500 py-4 rounded-2xl font-semibold transition active:scale-95">✓ Hinzufügen</button>
+      <div>
+        <button class="secondary-btn" onclick="closeSuccessModal()">Weiter so 💪</button>
       </div>
     </div>
   </div>
 
-  <!-- Flasche leer Modal -->
-  <div id="bottle-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:200;align-items:center;justify-content:center;padding:20px;">
-    <div class="bg-zinc-900 rounded-3xl p-8 w-full max-w-sm border border-orange-800 text-center" style="animation: popIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275)">
-      <div style="font-size:64px;line-height:1;margin-bottom:16px;">🍶</div>
-      <h2 class="text-2xl font-bold mb-2">Flasche leer?</h2>
-      <p class="text-zinc-400 text-sm mb-8">Du hast 1500 ml über die Wassermengen-Buttons hinzugefügt.</p>
-      <div class="grid grid-cols-2 gap-3">
-        <button onclick="confirmBottle(true)"  class="bg-orange-600 hover:bg-orange-500 py-4 rounded-2xl font-semibold transition active:scale-95">✅ Ja, leer!</button>
-        <button onclick="confirmBottle(false)" class="bg-zinc-700 hover:bg-zinc-600 py-4 rounded-2xl font-semibold transition active:scale-95">❌ Nein</button>
+  <!-- ─── Confirm modal ─── -->
+  <div id="confirm-modal" class="sheet-backdrop">
+    <div class="sheet">
+      <div class="sheet-grabber"></div>
+      <div style="font-size:11px;color:var(--fg-mute);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:6px;font-weight:600">Bestätigen</div>
+      <div id="confirm-label" style="font-size:28px;font-weight:700;letter-spacing:-0.03em;margin-bottom:22px">+250 ml</div>
+      <div class="confirm-grid">
+        <button class="btn-lg" onclick="confirmAdd(false)">✕ Abbrechen</button>
+        <button class="btn-lg primary" onclick="confirmAdd(true)">✓ Hinzufügen</button>
       </div>
     </div>
   </div>
-  <div id="milk-modal">
-    <div class="bg-zinc-900 rounded-3xl p-6 w-full max-w-sm border border-orange-800">
 
-      <!-- Schritt 1: Kaffeemenge -->
+  <!-- ─── Bottle modal ─── -->
+  <div id="bottle-modal" class="sheet-backdrop center">
+    <div class="sheet center-sheet" style="text-align:center;">
+      <div style="font-size:56px;line-height:1;margin-bottom:12px;filter:drop-shadow(0 6px 20px rgba(74,169,255,0.4))">🍶</div>
+      <div class="success-title">Flasche leer?</div>
+      <div class="success-sub">Du hast 1500 ml über die Wassermengen-Buttons hinzugefügt.</div>
+      <div class="confirm-grid">
+        <button class="btn-lg" onclick="confirmBottle(false)">❌ Nein</button>
+        <button class="btn-lg primary" onclick="confirmBottle(true)">✅ Ja, leer!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Kaffee / Milch modal ─── -->
+  <div id="milk-modal" class="sheet-backdrop">
+    <div class="sheet">
+      <div class="sheet-grabber"></div>
+      <div class="sheet-header" style="margin-bottom:4px">
+        <div class="sheet-title" id="coffee-sheet-title">☕ Welcher Kaffee?</div>
+        <button class="sheet-close" onclick="closeKaffeeModal()">✕</button>
+      </div>
+      <!-- Schritt 1: Kaffeegröße -->
       <div id="coffee-step-size">
-        <h3 class="text-xl font-semibold mb-1">☕ Welcher Kaffee?</h3>
-        <p class="text-zinc-400 text-sm mb-5">Kaffeemenge wählen</p>
-        <div class="grid grid-cols-2 gap-3 mb-3">
-          <button class="milk-option" onclick="selectCoffeeSize(40)">Espresso<br><span class="text-xs text-zinc-400">40 ml</span></button>
-          <button class="milk-option" onclick="selectCoffeeSize(80)">Double Espresso<br><span class="text-xs text-zinc-400">80 ml</span></button>
-          <button class="milk-option" onclick="selectCoffeeSize(100)">Schwarz<br><span class="text-xs text-zinc-400">100 ml</span></button>
-          <button class="milk-option" onclick="selectCoffeeSize(120)">Barista<br><span class="text-xs text-zinc-400">120 ml</span></button>
-          <button class="milk-option" onclick="selectCoffeeSize(150)">Gran Lungo<br><span class="text-xs text-zinc-400">150 ml</span></button>
-          <button class="milk-option" onclick="selectCoffeeSize(200)">TGW<br><span class="text-xs text-zinc-400">200 ml</span></button>
+        <div style="font-size:13px;color:var(--fg-dim);margin-bottom:16px">Kaffeemenge wählen</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <button class="pill-option" onclick="selectCoffeeSize(40)">Espresso<small>40 ml</small></button>
+          <button class="pill-option" onclick="selectCoffeeSize(80)">Double Espresso<small>80 ml</small></button>
+          <button class="pill-option" onclick="selectCoffeeSize(100)">Schwarz<small>100 ml</small></button>
+          <button class="pill-option" onclick="selectCoffeeSize(120)">Barista<small>120 ml</small></button>
+          <button class="pill-option" onclick="selectCoffeeSize(150)">Gran Lungo<small>150 ml</small></button>
+          <button class="pill-option" onclick="selectCoffeeSize(200)">TGW<small>200 ml</small></button>
         </div>
-        <button class="milk-option w-full" style="padding: 16px 0; font-size: 16px;" onclick="selectCoffeeSize(230)">
-          ☕ Mug<br><span class="text-xs text-zinc-400">230 ml</span>
-        </button>
+        <button class="pill-option" style="width:100%;padding:16px 0;font-size:15px" onclick="selectCoffeeSize(230)">☕ Mug<small>230 ml</small></button>
       </div>
-
       <!-- Schritt 2: Milch -->
       <div id="coffee-step-milk" class="hidden">
-        <h3 class="text-xl font-semibold mb-1">🥛 Milch dazu?</h3>
-        <p id="milk-step-subtitle" class="text-zinc-400 text-sm mb-5">Basis: 230 ml · Wie viel Milch?</p>
-        <div class="grid grid-cols-3 gap-3 mb-3">
-          <button class="milk-option" onclick="confirmKaffee(20)">20 ml</button>
-          <button class="milk-option" onclick="confirmKaffee(40)">40 ml</button>
-          <button class="milk-option" onclick="confirmKaffee(60)">60 ml</button>
-          <button class="milk-option" onclick="confirmKaffee(80)">80 ml</button>
-          <button class="milk-option" onclick="confirmKaffee(100)">100 ml</button>
-          <button class="milk-option no" onclick="confirmKaffee(0)">Keine Milch</button>
+        <div id="milk-step-subtitle" style="font-size:13px;color:var(--fg-dim);margin-bottom:16px">Basis: 230 ml · Wie viel Milch?</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px">
+          <button class="pill-option" onclick="confirmKaffee(20)">20 ml</button>
+          <button class="pill-option" onclick="confirmKaffee(40)">40 ml</button>
+          <button class="pill-option" onclick="confirmKaffee(60)">60 ml</button>
+          <button class="pill-option" onclick="confirmKaffee(80)">80 ml</button>
+          <button class="pill-option" onclick="confirmKaffee(100)">100 ml</button>
+          <button class="pill-option no" onclick="confirmKaffee(0)">Keine</button>
         </div>
-        <button onclick="backToCoffeeSize()" class="w-full text-zinc-500 text-sm mt-1 py-2">← Zurück</button>
+        <button class="secondary-btn" onclick="backToCoffeeSize()" style="margin-top:4px">← Zurück</button>
       </div>
+    </div>
+  </div>
 
+  <!-- ─── Tweaks panel ─── -->
+  <div id="tweak-panel" class="tweak-panel">
+    <div class="tweak-head">
+      <div class="tweak-title">Tweaks</div>
+      <button class="tweak-close" onclick="closeTweaks()">✕</button>
+    </div>
+    <div class="tweak-row">
+      <div class="tweak-row-label">Fortschritt</div>
+      <div class="seg" id="progress-style-seg">
+        <button class="seg-btn active" data-style="ring" onclick="setProgressStyle('ring')">Ring</button>
+        <button class="seg-btn" data-style="bar" onclick="setProgressStyle('bar')">Bar</button>
+      </div>
+    </div>
+    <div class="tweak-row">
+      <div class="tweak-row-label">Aurora</div>
+      <div class="seg" id="aurora-seg">
+        <button class="seg-btn active" data-aurora="on" onclick="setAurora(true)">An</button>
+        <button class="seg-btn" data-aurora="off" onclick="setAurora(false)">Aus</button>
+      </div>
     </div>
   </div>
 
@@ -408,16 +1355,24 @@
     if (window.Telegram?.WebApp) {
       Telegram.WebApp.ready();
       Telegram.WebApp.expand();
-      Telegram.WebApp.setHeaderColor('#ea580c');
+      Telegram.WebApp.setHeaderColor('#000000');
       Telegram.WebApp.BackButton.hide();
     }
 
-    // ─── State ──────────────────────────────────────────────────────────────────
+    // ─── Config ─────────────────────────────────────────────────────────────────
     const SUPABASE_URL   = "https://ebbuvdzgstrhrcsbrlez.supabase.co";
     const SUPABASE_KEY   = "sb_publishable_y6zCr61GpGd4GXk3zh7BJA_9RWUp7ES";
     const PUSHOVER_TOKEN = "a4zqbn2yeu65m5vc9vxs25ks1j4j7z";
     const PUSHOVER_USER  = "uxrg8gh43b1tpw31pq4r4i4ebqrhjt";
 
+    // ─── Tweak defaults (editmode) ─────────────────────────────────────────────
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "progressStyle": "ring",
+      "aurora": true
+    }/*EDITMODE-END*/;
+    let tweaks = { ...TWEAK_DEFAULTS };
+
+    // ─── State ──────────────────────────────────────────────────────────────────
     let settings = {
       goal: 2000,
       startTime: "08:00",
@@ -471,36 +1426,28 @@
         showSync(true);
         const today = new Date().toISOString().split('T')[0];
 
-        // Load settings
         const { data: settingsData } = await supabaseClient
-          .from('water_settings')
-          .select('*')
-          .eq('id', 1)
-          .single();
+          .from('water_settings').select('*').eq('id', 1).single();
 
         if (settingsData) {
           settings.goal         = settingsData.goal         ?? settings.goal;
           settings.startTime    = settingsData.start_time   ?? settings.startTime;
           settings.endTime      = settingsData.end_time     ?? settings.endTime;
-          settings.winstreak       = settingsData.winstreak      ?? 0;
-          settings.lastGoalDate    = settingsData.last_goal_date  ?? null;
-          settings.lastPushSent    = settingsData.last_push_sent  ?? null;
-          // Reset pending bottle ml if it's a new day
+          settings.winstreak    = settingsData.winstreak    ?? 0;
+          settings.lastGoalDate = settingsData.last_goal_date ?? null;
+          settings.lastPushSent = settingsData.last_push_sent ?? null;
           const todayStr = new Date().toISOString().split('T')[0];
           if (settingsData.bottles_date === todayStr) {
             settings.bottlesToday = settingsData.bottles_today ?? 0;
             settings.bottlesDate  = settingsData.bottles_date  ?? null;
           } else {
-            settings.bottlesToday    = 0;
-            settings.bottlesDate     = null;
+            settings.bottlesToday = 0;
+            settings.bottlesDate  = null;
           }
         }
 
-        // Load today's logs
         const { data: logsData } = await supabaseClient
-          .from('water_logs')
-          .select('*')
-          .eq('date', today)
+          .from('water_logs').select('*').eq('date', today)
           .order('ts', { ascending: true });
 
         if (logsData) {
@@ -530,21 +1477,16 @@
         const { data, error } = await supabaseClient
           .from('water_logs')
           .insert({
-            ts:       new Date(entry.ts).toISOString(),
-            amount:   entry.amount,
-            name:     entry.name || null,
-            date:     today,
+            ts: new Date(entry.ts).toISOString(),
+            amount: entry.amount,
+            name: entry.name || null,
+            date: today,
             category: entry.category || null
           })
-          .select()
-          .single();
-
+          .select().single();
         showSync(false);
         if (error) throw error;
-
-        // Save today's goal (upsert – safe to call every time, DB ignores duplicates)
         saveDailyGoal(today);
-
         return data?.id ?? null;
       } catch(e) {
         console.error('Supabase save log error:', e);
@@ -557,40 +1499,32 @@
       if (!supabaseClient) return;
       try {
         await supabaseClient.from('water_daily').upsert({
-          date: date,
-          goal: settings.goal
+          date: date, goal: settings.goal
         }, { onConflict: 'date', ignoreDuplicates: true });
-      } catch(e) {
-        console.error('Supabase saveDailyGoal error:', e);
-      }
+      } catch(e) { console.error('Supabase saveDailyGoal error:', e); }
     }
 
     async function deleteLogFromSupabase(id) {
       if (!supabaseClient || !id) return;
-      try {
-        await supabaseClient.from('water_logs').delete().eq('id', id);
-      } catch(e) {
-        console.error('Supabase delete error:', e);
-      }
+      try { await supabaseClient.from('water_logs').delete().eq('id', id); }
+      catch(e) { console.error('Supabase delete error:', e); }
     }
 
     async function saveSettingsToSupabase() {
       if (!supabaseClient) return;
       try {
         await supabaseClient.from('water_settings').upsert({
-          id:                 1,
-          goal:               settings.goal,
-          start_time:         settings.startTime,
-          end_time:           settings.endTime,
-          winstreak:          settings.winstreak,
-          last_goal_date:     settings.lastGoalDate,
-          bottles_today:      settings.bottlesToday,
-          bottles_date:       settings.bottlesDate,
-          last_push_sent:     settings.lastPushSent,
+          id: 1,
+          goal: settings.goal,
+          start_time: settings.startTime,
+          end_time: settings.endTime,
+          winstreak: settings.winstreak,
+          last_goal_date: settings.lastGoalDate,
+          bottles_today: settings.bottlesToday,
+          bottles_date: settings.bottlesDate,
+          last_push_sent: settings.lastPushSent,
         });
-      } catch(e) {
-        console.error('Supabase save settings error:', e);
-      }
+      } catch(e) { console.error('Supabase save settings error:', e); }
     }
 
     // ─── localStorage fallback ────────────────────────────────────────────────
@@ -600,43 +1534,38 @@
         const parsed = JSON.parse(savedSettings);
         settings = { ...settings, ...parsed };
       }
-
       const savedLogs = localStorage.getItem(STORAGE_LOGS);
       if (savedLogs) {
         const today = new Date().toDateString();
         logs = JSON.parse(savedLogs).filter(log => new Date(log.ts).toDateString() === today);
       }
     }
-
     function saveToLocal() {
       localStorage.setItem(STORAGE_SETTINGS, JSON.stringify(settings));
       localStorage.setItem(STORAGE_LOGS, JSON.stringify(logs));
-      console.log('saveToLocal:', JSON.stringify(logs).substring(0, 300));
     }
 
     // ─── Pushover ────────────────────────────────────────────────────────────────
     async function testPushover() {
       const body = new FormData();
-      body.append('token',   settings.pushoverToken);
-      body.append('user',    settings.pushoverUser);
+      body.append('token', settings.pushoverToken);
+      body.append('user', settings.pushoverUser);
       body.append('message', 'Test erfolgreich! 💧 Dein Wasser Tracker ist verbunden.');
-      body.append('title',   '💧 Wasser Tracker Test');
-      body.append('sound',   'droplet');
+      body.append('title', '💧 Wasser Tracker Test');
+      body.append('sound', 'droplet');
       try {
         await fetch('https://api.pushover.net/1/messages.json', { method: 'POST', body, mode: 'no-cors' });
         showToast('🔔 Test-Push abgeschickt – check dein Handy!');
-      } catch(e) {
-        showToast('❌ Pushover fehlgeschlagen');
-      }
+      } catch(e) { showToast('❌ Pushover fehlgeschlagen'); }
     }
 
-    // ─── Reminder + Pushover check ────────────────────────────────────────────
+    // ─── Reminder logic ────────────────────────────────────────────────────────
     function getCurrentExpected() {
       const now = new Date();
-      const [startHour, startMin] = settings.startTime.split(':').map(Number);
-      const [endHour, endMin]     = settings.endTime.split(':').map(Number);
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startHour, startMin);
-      const end   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), endHour, endMin);
+      const [sh, sm] = settings.startTime.split(':').map(Number);
+      const [eh, em] = settings.endTime.split(':').map(Number);
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), sh, sm);
+      const end   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), eh, em);
       if (now < start) return 0;
       if (now > end)   return settings.goal;
       return Math.round(settings.goal * ((now - start) / (end - start)));
@@ -649,56 +1578,45 @@
     function getNextReminderTime() {
       const COOLDOWN_MS = 30 * 60 * 1000;
       const now = new Date();
-
       if (!settings.lastPushSent) {
-        // No cooldown active → next 2-min tick
         const next = new Date(now.getTime() + 2 * 60 * 1000);
         return next.toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
       }
-
       const lastSent = new Date(settings.lastPushSent).getTime();
       const cooldownEnds = lastSent + COOLDOWN_MS;
-
       if (cooldownEnds <= now.getTime()) {
-        // Cooldown already expired → next 2-min tick
         const next = new Date(now.getTime() + 2 * 60 * 1000);
         return next.toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
       }
-
-      // Cooldown still active → show when it expires
       return new Date(cooldownEnds).toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
     }
 
     function getFalloffTime() {
-      // At what time will getCurrentExpected() exceed drunk+120 if nothing is drunk?
       const drunk = getTodayTotal();
-      const now   = new Date();
-      const [startHour, startMin] = settings.startTime.split(':').map(Number);
-      const [endHour,   endMin]   = settings.endTime.split(':').map(Number);
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startHour, startMin);
-      const end   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), endHour, endMin);
+      const now = new Date();
+      const [sh, sm] = settings.startTime.split(':').map(Number);
+      const [eh, em] = settings.endTime.split(':').map(Number);
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), sh, sm);
+      const end   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), eh, em);
       const totalTime = end - start;
-
-      // Find the time when expected = drunk + 120
       const targetRatio = (drunk + 120) / settings.goal;
-      if (targetRatio >= 1) return null; // already at/above goal
+      if (targetRatio >= 1) return null;
       const falloffMs = start.getTime() + targetRatio * totalTime;
-      const falloff   = new Date(falloffMs);
-      if (falloff <= now) return null; // already fallen off
+      const falloff = new Date(falloffMs);
+      if (falloff <= now) return null;
       return falloff.toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
     }
 
     function checkReminder() {
-      const drunk    = getTodayTotal();
+      const drunk = getTodayTotal();
       const expected = getCurrentExpected();
-      const behind   = drunk < expected - 120;
-      const banner   = document.getElementById('reminder-banner');
-      const ontrack  = document.getElementById('ontrack-info');
-
+      const behind = drunk < expected - 120;
+      const banner = document.getElementById('reminder-banner');
+      const ontrack = document.getElementById('ontrack-info');
       if (behind) {
         const missing = Math.max(200, Math.round(expected - drunk));
         document.getElementById('reminder-subtext').textContent = `Trink jetzt ca. ${missing} ml`;
-        document.getElementById('reminder-next-push').textContent = `🔔 Nächste Erinnerung um ${getNextReminderTime()} Uhr`;
+        document.getElementById('reminder-next-push').textContent = `Nächste Erinnerung um ${getNextReminderTime()} Uhr`;
         banner.classList.remove('hidden');
         ontrack.classList.add('hidden');
       } else {
@@ -713,21 +1631,26 @@
       }
     }
 
-    // ─── UI ──────────────────────────────────────────────────────────────────────
+    // ─── UI ─────────────────────────────────────────────────────────────────────
+    const RING_CIRC = 2 * Math.PI * 50; // ~314.159
+
     function updateUI() {
-      const total   = getTodayTotal();
+      const total = getTodayTotal();
       const percent = Math.min(Math.round((total / settings.goal) * 100), 100);
 
-      document.getElementById('drunk-amount').innerHTML = `${total} <span class="text-3xl text-zinc-500">ml</span>`;
-      document.getElementById('goal-text').textContent  = `von ${settings.goal} ml`;
+      document.getElementById('drunk-amount').textContent = total;
+      document.getElementById('goal-text-num').textContent = settings.goal;
       document.getElementById('progress-percent').textContent = `${percent}%`;
-      document.getElementById('progress-bar').style.width     = `${percent}%`;
 
-      // Mini-Statistiken
+      // Ring
+      const offset = RING_CIRC * (1 - Math.min(total / settings.goal, 1));
+      document.getElementById('ring-fill').style.strokeDashoffset = offset;
+      // Bar
+      document.getElementById('progress-bar').style.width = `${percent}%`;
+
+      // Breakdown
       const otherLogs = logs.filter(e => e.category === 'other');
       const customTotal = logs.filter(e => e.category === 'custom').reduce((s, e) => s + e.amount, 0);
-
-      // Breakdown: group by base name (strip milch suffix for grouping key)
       const breakdown = {};
       let totalMilchMl = 0;
       const drinkMlMap = {
@@ -745,8 +1668,10 @@
       });
 
       const drinkEmojis = {
-        'Kaffee': '☕', 'Energy Drink': '⚡', 'Whey Shake': '🥤',
-        '500ml Glas': '🥛', '650ml Glas': '🥛', 'Barbarian Jug': '🏺'
+        'Kaffee':'☕','Espresso':'☕','Double Espresso':'☕','Schwarz':'☕',
+        'Barista':'☕','Gran Lungo':'☕','TGW':'☕','Mug':'☕',
+        'Energy Drink':'⚡','Whey Shake':'🥤',
+        '500ml Glas':'🥛','650ml Glas':'🥛','Barbarian Jug':'🏺'
       };
 
       const breakdownEl = document.getElementById('other-drinks-breakdown');
@@ -754,49 +1679,33 @@
       const bottleCount = (settings.bottlesDate === today) ? (settings.bottlesToday || 0) : 0;
 
       if (Object.keys(breakdown).length === 0 && bottleCount === 0) {
-        breakdownEl.innerHTML = '<span class="text-zinc-600 italic">Noch nichts eingetragen</span>';
+        breakdownEl.innerHTML = '<div class="breakdown-empty">Noch nichts eingetragen</div>';
       } else {
         let html = '';
         if (bottleCount > 0) {
-          html += `<div class="flex justify-between items-center py-1">
-            <span>🍶 Flasche</span>
-            <span class="text-orange-400 font-bold">${bottleCount}×</span>
-          </div>`;
+          html += `<div class="breakdown-row"><span class="name">🍶 Flasche</span><span class="count">${bottleCount}×</span></div>`;
         }
         html += Object.entries(breakdown)
-          .sort((a, b) => b[1].ml - a[1].ml)
+          .sort((a,b) => b[1].ml - a[1].ml)
           .map(([name, d]) => {
             const emoji = drinkEmojis[name] || '🥤';
-            return `<div class="flex justify-between items-center py-1">
-              <span>${emoji} ${name}</span>
-              <span class="text-orange-400 font-bold">${d.count}×</span>
-            </div>`;
+            return `<div class="breakdown-row"><span class="name">${emoji} ${name}</span><span class="count">${d.count}×</span></div>`;
           }).join('');
         if (totalMilchMl > 0 || customTotal > 0) {
-          html += `<div class="border-t border-zinc-700 mt-1 pt-2">`;
-          if (totalMilchMl > 0) {
-            html += `<div class="flex justify-between items-center py-1">
-              <span>🥛 Milch</span>
-              <span class="text-orange-400 font-bold">${totalMilchMl} ml</span>
-            </div>`;
-          }
-          if (customTotal > 0) {
-            html += `<div class="flex justify-between items-center py-1">
-              <span>✏️ Eigene Einträge</span>
-              <span class="text-orange-400 font-bold">${customTotal} ml</span>
-            </div>`;
-          }
+          html += `<div class="breakdown-divider">`;
+          if (totalMilchMl > 0) html += `<div class="breakdown-row"><span class="name">🥛 Milch</span><span class="count">${totalMilchMl} ml</span></div>`;
+          if (customTotal > 0)  html += `<div class="breakdown-row"><span class="name">✏️ Eigene Einträge</span><span class="count">${customTotal} ml</span></div>`;
           html += `</div>`;
         }
         breakdownEl.innerHTML = html;
       }
 
-      // Flasche Progress
+      // Bottle
       const pending = getPendingBottleMl();
       const bottleRow = document.getElementById('bottle-progress-row');
       if (pending > 0) {
-        const bottlePct = Math.min(Math.round((pending / 1500) * 100), 100);
-        document.getElementById('bottle-progress-bar').style.width = `${bottlePct}%`;
+        const pct = Math.min(Math.round((pending / 1500) * 100), 100);
+        document.getElementById('bottle-progress-bar').style.width = `${pct}%`;
         document.getElementById('bottle-progress-text').textContent = `${pending} / 1500 ml`;
         bottleRow.classList.remove('hidden');
       } else {
@@ -812,37 +1721,36 @@
     function renderLogList() {
       const container = document.getElementById('log-list');
       container.innerHTML = '';
-
       if (logs.length === 0) {
-        container.innerHTML = `<p class="text-center text-zinc-500 py-8">Noch keine Einträge heute</p>`;
+        container.innerHTML = `<div class="log-empty">Noch keine Einträge heute</div>`;
         document.getElementById('total-entries').textContent = '0';
         return;
       }
-
-      [...logs].sort((a, b) => b.ts - a.ts).forEach((entry, index) => {
+      [...logs].sort((a,b) => b.ts - a.ts).forEach((entry, index) => {
         const time = new Date(entry.ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-        const div  = document.createElement('div');
-        div.className = "bg-zinc-900 border border-zinc-800 hover:border-orange-800 rounded-2xl px-5 py-4 flex justify-between items-center";
+        const div = document.createElement('div');
+        div.className = 'log-item';
         div.innerHTML = `
           <div>
-            <span class="text-orange-400 font-medium">${time}</span>
-            <span class="ml-4 text-lg font-semibold">+${entry.amount} ml ${entry.name ? `<span class="text-xs text-zinc-500">(${entry.name})</span>` : ''}</span>
+            <span class="time">${time}</span>
+            <span class="amount">+${entry.amount} ml</span>
+            ${entry.name ? `<span class="name-tag">${entry.name}</span>` : ''}
           </div>
-          <button onclick="deleteEntry(${index})" class="text-zinc-500 hover:text-red-500 text-xl w-8 h-8 flex items-center justify-center active:scale-90">🗑</button>
-        `;
+          <button class="log-del" onclick="deleteEntry(${index})" aria-label="Löschen">
+            <svg class="ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+          </button>`;
         container.appendChild(div);
       });
-
       document.getElementById('total-entries').textContent = logs.length;
     }
 
     let chartInstance = null;
     function renderChart() {
-      const ctx       = document.getElementById('waterChart');
+      const ctx = document.getElementById('waterChart');
       const startHour = parseInt(settings.startTime.split(':')[0]);
-      const endHour   = parseInt(settings.endTime.split(':')[0]);
-      const range     = endHour - startHour;
-      const step      = range > 10 ? 2 : 1;
+      const endHour = parseInt(settings.endTime.split(':')[0]);
+      const range = endHour - startHour;
+      const step = range > 10 ? 2 : 1;
 
       const labels = [];
       for (let h = startHour; h <= endHour; h += step) labels.push(`${String(h).padStart(2,'0')}:00`);
@@ -850,18 +1758,15 @@
         labels.push(`${String(endHour).padStart(2,'0')}:00`);
 
       const expectedData = labels.map((_, i) => Math.round(settings.goal * (i / (labels.length - 1))));
-      const drunkData    = labels.map(label => {
-        const hour   = parseInt(label.split(':')[0]);
+      const drunkData = labels.map(label => {
+        const hour = parseInt(label.split(':')[0]);
         const cutoff = new Date(); cutoff.setHours(hour, 59, 59, 999);
         return logs.filter(l => l.ts <= cutoff.getTime()).reduce((sum, l) => sum + l.amount, 0);
       });
 
-      // Find where "now" sits between labels (interpolated)
       const now = new Date();
-      const nowDecimal   = now.getHours() + now.getMinutes() / 60;
-      const startDecimal = startHour;
-      const endDecimal   = endHour;
-      const nowFraction  = Math.max(0, Math.min(1, (nowDecimal - startDecimal) / (endDecimal - startDecimal)));
+      const nowDecimal = now.getHours() + now.getMinutes()/60;
+      const nowFraction = Math.max(0, Math.min(1, (nowDecimal - startHour) / (endHour - startHour)));
 
       const nowLinePlugin = {
         id: 'nowLine',
@@ -872,9 +1777,9 @@
           ctx.beginPath();
           ctx.moveTo(x, top);
           ctx.lineTo(x, bottom);
-          ctx.strokeStyle = 'rgba(255,255,255,0.7)';
-          ctx.lineWidth = 2;
-          ctx.setLineDash([4, 4]);
+          ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([3, 4]);
           ctx.stroke();
           ctx.restore();
         }
@@ -884,56 +1789,58 @@
       chartInstance = new Chart(ctx, {
         type: 'line',
         data: { labels, datasets: [
-          { label: 'Soll-Linie', data: expectedData, borderColor: '#f97316', borderDash: [5,3], borderWidth: 3, pointRadius: 0 },
-          { label: 'Getrunken',  data: drunkData,    borderColor: '#fbbf24', tension: 0.3, borderWidth: 4, pointRadius: 3, pointBackgroundColor: '#fcd34d' }
+          { label: 'Soll', data: expectedData, borderColor: 'rgba(255,138,31,0.85)', borderDash: [5,4], borderWidth: 2, pointRadius: 0, tension: 0.2 },
+          { label: 'Getrunken', data: drunkData, borderColor: '#ffb070', tension: 0.35, borderWidth: 3, pointRadius: 2.5, pointBackgroundColor: '#ff8a1f', fill: {
+            target: 'origin',
+            above: 'rgba(255,138,31,0.15)'
+          } }
         ]},
         options: {
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: true, position: 'top', labels: { color: '#d1d5db' }}},
+          plugins: {
+            legend: { display: true, position: 'top', align: 'end',
+              labels: { color: 'rgba(255,255,255,0.7)', boxWidth: 10, boxHeight: 2, usePointStyle: false, font: { size: 11 }, padding: 14 }
+            }
+          },
           scales: {
-            y: { beginAtZero: true, max: Math.ceil(settings.goal * 1.2 / 500)*500, grid: { color: '#27272a' }, ticks: { color: '#71717a' }},
-            x: { grid: { color: '#27272a' }, ticks: { color: '#71717a', maxTicksLimit: 8 }}
+            y: { beginAtZero: true, max: Math.ceil(settings.goal * 1.2 / 500)*500,
+              grid: { color: 'rgba(255,255,255,0.05)' },
+              ticks: { color: 'rgba(255,255,255,0.4)', font: { size: 11 } }
+            },
+            x: {
+              grid: { display: false },
+              ticks: { color: 'rgba(255,255,255,0.4)', maxTicksLimit: 7, font: { size: 11 } }
+            }
           }
-        }
+        },
+        plugins: [nowLinePlugin]
       });
     }
 
-    // ─── Winstreak ────────────────────────────────────────────────────────────────
-    function getTodayDateStr() {
-      return new Date().toLocaleDateString('sv-SE');
-    }
-
+    // ─── Winstreak ──────────────────────────────────────────────────────────────
+    function getTodayDateStr() { return new Date().toLocaleDateString('sv-SE'); }
     function getYesterdayDateStr() {
-      const d = new Date();
-      d.setDate(d.getDate() - 1);
+      const d = new Date(); d.setDate(d.getDate() - 1);
       return d.toLocaleDateString('sv-SE');
     }
 
     async function checkWinstreak() {
-      const today     = getTodayDateStr();
+      const today = getTodayDateStr();
       const yesterday = getYesterdayDateStr();
-      const total     = getTodayTotal();
-      const goalMet   = total >= settings.goal;
+      const total = getTodayTotal();
+      const goalMet = total >= settings.goal;
 
-      // Check if yesterday's goal was missed → reset streak
       if (settings.lastGoalDate && settings.lastGoalDate !== today && settings.lastGoalDate !== yesterday) {
-        // Last goal was more than 1 day ago → streak broken
         settings.winstreak = 0;
         saveToLocal();
         await saveSettingsToSupabase();
       }
 
-      // Goal just reached today for the first time this session
       if (goalMet && !goalReachedToday) {
         goalReachedToday = true;
-
         if (settings.lastGoalDate !== today) {
-          // Increment streak
-          if (settings.lastGoalDate === yesterday) {
-            settings.winstreak += 1;
-          } else {
-            settings.winstreak = 1; // fresh start
-          }
+          if (settings.lastGoalDate === yesterday) settings.winstreak += 1;
+          else settings.winstreak = 1;
           settings.lastGoalDate = today;
           saveToLocal();
           await saveSettingsToSupabase();
@@ -941,22 +1848,19 @@
         }
       }
 
-      // Update badge
       const badge = document.getElementById('winstreak-display');
+      const txt = document.getElementById('winstreak-text');
       if (settings.winstreak === 0) {
-        badge.textContent = '🔥 0 Tage';
-        badge.className = 'text-sm font-bold text-zinc-500';
+        txt.textContent = '0 Tage';
+        badge.classList.add('dim');
       } else {
-        badge.textContent = `🔥 ${settings.winstreak} Tag${settings.winstreak === 1 ? '' : 'e'}`;
-        badge.className = 'text-sm font-bold text-orange-400';
+        txt.textContent = `${settings.winstreak} Tag${settings.winstreak === 1 ? '' : 'e'}`;
+        badge.classList.remove('dim');
       }
     }
 
     function showSuccessModal() {
       const streak = settings.winstreak;
-      const modal  = document.getElementById('success-modal');
-
-      // Pick emoji and message based on streak
       let emoji, title, subtitle;
       if (streak >= 30) { emoji = '👑'; title = 'Absolute Legende!'; }
       else if (streak >= 14) { emoji = '🏆'; title = 'Unaufhaltbar!'; }
@@ -964,31 +1868,22 @@
       else if (streak >= 3)  { emoji = '🔥'; title = 'Du bist auf Kurs!'; }
       else if (streak === 1) { emoji = '💧'; title = 'Tagesziel erreicht!'; }
       else                   { emoji = '🎉'; title = 'Wieder im Rhythmus!'; }
-
-      subtitle = streak > 1
-        ? `${streak} Tage in Folge das Ziel erreicht. Stark!`
-        : 'Heute hast du dein Ziel geschafft. Bleib dran!';
-
-      document.getElementById('success-emoji').textContent      = emoji;
-      document.getElementById('success-title').textContent      = title;
-      document.getElementById('success-subtitle').textContent   = subtitle;
+      subtitle = streak > 1 ? `${streak} Tage in Folge. Stark!` : 'Heute hast du dein Ziel geschafft. Bleib dran!';
+      document.getElementById('success-emoji').textContent = emoji;
+      document.getElementById('success-title').textContent = title;
+      document.getElementById('success-subtitle').textContent = subtitle;
       document.getElementById('success-streak-count').textContent = streak;
-
-      modal.style.display = 'flex';
+      document.getElementById('success-modal').classList.add('open');
     }
+    function closeSuccessModal() { document.getElementById('success-modal').classList.remove('open'); }
 
-    function closeSuccessModal() {
-      document.getElementById('success-modal').style.display = 'none';
-    }
-
-    // ─── Flasche ─────────────────────────────────────────────────────────────────
+    // ─── Flasche ────────────────────────────────────────────────────────────────
     async function confirmBottle(isEmpty) {
-      document.getElementById('bottle-modal').style.display = 'none';
-
+      document.getElementById('bottle-modal').classList.remove('open');
       if (isEmpty) {
         const today = new Date().toISOString().split('T')[0];
         settings.bottlesToday = (settings.bottlesToday || 0) + 1;
-        settings.bottlesDate  = today;
+        settings.bottlesDate = today;
       }
       saveToLocal();
       await saveSettingsToSupabase();
@@ -996,28 +1891,30 @@
       if (isEmpty) showToast(`🍶 Flasche ${settings.bottlesToday} eingetragen!`);
     }
 
+    // ─── Kaffee ─────────────────────────────────────────────────────────────────
     let selectedCoffeeSize = 230;
-
     function addKaffee() {
-      // Reset to step 1
       document.getElementById('coffee-step-size').classList.remove('hidden');
       document.getElementById('coffee-step-milk').classList.add('hidden');
+      document.getElementById('coffee-sheet-title').textContent = '☕ Welcher Kaffee?';
       document.getElementById('milk-modal').classList.add('open');
     }
-
+    function closeKaffeeModal() {
+      document.getElementById('milk-modal').classList.remove('open');
+    }
     function selectCoffeeSize(ml) {
       selectedCoffeeSize = ml;
       const names = {40:'Espresso',80:'Double Espresso',100:'Schwarz',120:'Barista',150:'Gran Lungo',200:'TGW',230:'Mug'};
       document.getElementById('milk-step-subtitle').textContent = `${names[ml] || ml + ' ml'} (${ml} ml) · Wie viel Milch?`;
+      document.getElementById('coffee-sheet-title').textContent = '🥛 Milch dazu?';
       document.getElementById('coffee-step-size').classList.add('hidden');
       document.getElementById('coffee-step-milk').classList.remove('hidden');
     }
-
     function backToCoffeeSize() {
       document.getElementById('coffee-step-milk').classList.add('hidden');
       document.getElementById('coffee-step-size').classList.remove('hidden');
+      document.getElementById('coffee-sheet-title').textContent = '☕ Welcher Kaffee?';
     }
-
     function confirmKaffee(milchMl) {
       document.getElementById('milk-modal').classList.remove('open');
       const total = selectedCoffeeSize + milchMl;
@@ -1039,82 +1936,56 @@
         }
       });
     }
-
     function timeToSelects(time, hourId, minId) {
       const [h, m] = time.split(':');
       document.getElementById(hourId).value = h;
-      document.getElementById(minId).value  = m === '30' ? '30' : '00';
+      document.getElementById(minId).value = m === '30' ? '30' : '00';
     }
-
     function selectsToTime(hourId, minId) {
       return `${document.getElementById(hourId).value}:${document.getElementById(minId).value}`;
     }
-    function toggleAppSwitcher() {
-      const el = document.getElementById('app-switcher');
-      el.classList.toggle('hidden');
-    }
-
-    // Close when clicking outside
-    document.addEventListener('click', e => {
-      const switcher = document.getElementById('app-switcher');
-      if (!switcher.classList.contains('hidden') && !e.target.closest('.relative')) {
-        switcher.classList.add('hidden');
-      }
-    });
 
     function getPendingBottleMl() {
-      const totalWaterButtonMl = logs
-        .filter(l => !l.category)
-        .reduce((sum, l) => sum + l.amount, 0);
+      const totalWaterButtonMl = logs.filter(l => !l.category).reduce((sum, l) => sum + l.amount, 0);
       const confirmedBottles = settings.bottlesToday || 0;
       return Math.max(0, totalWaterButtonMl - confirmedBottles * 1500);
     }
     function toggleLogList() {
-      const wrapper  = document.getElementById('log-list-wrapper');
-      const chevron  = document.getElementById('log-chevron');
-      const expanded = !wrapper.classList.contains('hidden');
-      wrapper.classList.toggle('hidden', expanded);
-      chevron.style.transform = expanded ? '' : 'rotate(180deg)';
+      const wrapper = document.getElementById('log-list-wrapper');
+      const chevron = document.getElementById('log-chevron');
+      wrapper.classList.toggle('open');
+      chevron.classList.toggle('open');
     }
 
-    // ─── Bestätigungs-Modal ───────────────────────────────────────────────────────
+    // ─── Confirm modal ──────────────────────────────────────────────────────────
     let _pendingAmount = null, _pendingName = null, _pendingCategory = null;
-
     function askConfirm(amount, name, category) {
-      _pendingAmount   = amount;
-      _pendingName     = name;
-      _pendingCategory = category;
-      const label = name ? `+${amount} ml (${name})` : `+${amount} ml`;
+      _pendingAmount = amount; _pendingName = name; _pendingCategory = category;
+      const label = name ? `+${amount} ml · ${name}` : `+${amount} ml`;
       document.getElementById('confirm-label').textContent = label;
-      document.getElementById('confirm-modal').style.display = 'flex';
+      document.getElementById('confirm-modal').classList.add('open');
     }
-
     function confirmAdd(ok) {
-      document.getElementById('confirm-modal').style.display = 'none';
-      if (ok && _pendingAmount !== null) {
-        quickAdd(_pendingAmount, _pendingName, _pendingCategory);
-      }
+      document.getElementById('confirm-modal').classList.remove('open');
+      if (ok && _pendingAmount !== null) quickAdd(_pendingAmount, _pendingName, _pendingCategory);
       _pendingAmount = _pendingName = _pendingCategory = null;
     }
 
-    // ─── Actions ─────────────────────────────────────────────────────────────────
+    // ─── Actions ────────────────────────────────────────────────────────────────
     async function quickAdd(amount, name = null, category = null) {
       const entry = { ts: Date.now(), amount: parseInt(amount), name, category };
       logs.push(entry);
-
-      // Track cumulative water-button ml for bottle check
       if (!category) {
         const pending = getPendingBottleMl();
         if (pending >= 1500) {
-          setTimeout(() => {
-            document.getElementById('bottle-modal').style.display = 'flex';
-          }, 400);
+          setTimeout(() => { document.getElementById('bottle-modal').classList.add('open'); }, 400);
         }
       }
-
       saveToLocal();
+      // Splash anim on hero
+      const hero = document.getElementById('hero-card');
+      hero.classList.remove('splash'); void hero.offsetWidth; hero.classList.add('splash');
       updateUI();
-
       const id = await saveLogToSupabase(entry);
       if (id !== null) entry.id = id;
     }
@@ -1125,38 +1996,33 @@
     }
 
     async function deleteEntry(index) {
-      const sorted = [...logs].sort((a, b) => b.ts - a.ts);
-      const entry  = sorted[index];
+      const sorted = [...logs].sort((a,b) => b.ts - a.ts);
+      const entry = sorted[index];
       const realIdx = logs.indexOf(entry);
-
       if (!confirm("Eintrag wirklich löschen?")) return;
-
       if (entry.id) await deleteLogFromSupabase(entry.id);
-
       logs.splice(realIdx, 1);
       saveToLocal();
       updateUI();
     }
 
-    // ─── Settings Modal ───────────────────────────────────────────────────────────
+    // ─── Settings ──────────────────────────────────────────────────────────────
     function toggleSettings() {
       const modal = document.getElementById('settings-modal');
-      if (modal.classList.contains('hidden')) {
-      populateHours();
-      document.getElementById('goal-input').value = settings.goal;
-      timeToSelects(settings.startTime, 'start-hour', 'start-min');
-      timeToSelects(settings.endTime,   'end-hour',   'end-min');
-        modal.classList.remove('hidden');
+      if (!modal.classList.contains('open')) {
+        populateHours();
+        document.getElementById('goal-input').value = settings.goal;
+        timeToSelects(settings.startTime, 'start-hour', 'start-min');
+        timeToSelects(settings.endTime, 'end-hour', 'end-min');
+        modal.classList.add('open');
       } else {
-        modal.classList.add('hidden');
+        modal.classList.remove('open');
       }
     }
-
     async function saveSettings() {
-      settings.goal      = parseInt(document.getElementById('goal-input').value) || 2000;
+      settings.goal = parseInt(document.getElementById('goal-input').value) || 2000;
       settings.startTime = selectsToTime('start-hour', 'start-min');
-      settings.endTime   = selectsToTime('end-hour',   'end-min');
-      // Keys are hardcoded — not read from form
+      settings.endTime = selectsToTime('end-hour', 'end-min');
       saveToLocal();
       initSupabase();
       await saveSettingsToSupabase();
@@ -1165,59 +2031,43 @@
       showToast('✅ Einstellungen gespeichert');
     }
 
-    // ─── Stats ────────────────────────────────────────────────────────────────────
+    // ─── Stats ─────────────────────────────────────────────────────────────────
     let statsPeriod = 7;
     let statsChartInstance = null;
-
     const DRINK_EMOJIS = {
-      'Kaffee': '☕', 'Espresso': '☕', 'Double Espresso': '☕',
-      'Schwarz': '☕', 'Barista': '☕', 'Gran Lungo': '☕', 'TGW': '☕', 'Mug': '☕',
-      'Energy Drink': '⚡', 'Whey Shake': '🥤',
-      '500ml Glas': '🥛', '650ml Glas': '🥛', 'Barbarian Jug': '🏺'
+      'Kaffee':'☕','Espresso':'☕','Double Espresso':'☕','Schwarz':'☕',
+      'Barista':'☕','Gran Lungo':'☕','TGW':'☕','Mug':'☕',
+      'Energy Drink':'⚡','Whey Shake':'🥤',
+      '500ml Glas':'🥛','650ml Glas':'🥛','Barbarian Jug':'🏺'
     };
 
-
     function openStats() {
-      document.getElementById('stats-modal').classList.remove('hidden');
+      document.getElementById('stats-modal').classList.add('open');
       setStatsPeriod(7);
     }
-
     function closeStats() {
-      document.getElementById('stats-modal').classList.add('hidden');
+      document.getElementById('stats-modal').classList.remove('open');
     }
-
-    function todayStr() {
-      return new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD in local time
-    }
-
+    function todayStr() { return new Date().toLocaleDateString('sv-SE'); }
     function offsetDateStr(days) {
-      const d = new Date();
-      d.setDate(d.getDate() - days);
+      const d = new Date(); d.setDate(d.getDate() - days);
       return d.toLocaleDateString('sv-SE');
     }
-
     function setStatsPeriod(period) {
       statsPeriod = period;
       ['7','30','90','custom'].forEach(t => {
-        document.getElementById(`stats-tab-${t}`).classList.remove('active-tab');
+        document.getElementById(`stats-tab-${t}`).classList.remove('active');
       });
       const key = period === 'custom' ? 'custom' : period;
-      document.getElementById(`stats-tab-${key}`).classList.add('active-tab');
-
+      document.getElementById(`stats-tab-${key}`).classList.add('active');
       const customEl = document.getElementById('stats-custom-range');
-      if (period === 'custom') {
-        customEl.classList.remove('hidden');
-        return;
-      } else {
-        customEl.classList.add('hidden');
-      }
-
+      if (period === 'custom') { customEl.classList.remove('hidden'); return; }
+      else { customEl.classList.add('hidden'); }
       loadStats(offsetDateStr(period - 1), todayStr());
     }
-
     function loadCustomStats() {
       const from = document.getElementById('stats-from').value;
-      const to   = document.getElementById('stats-to').value;
+      const to = document.getElementById('stats-to').value;
       if (!from || !to) { showToast('Bitte beide Daten wählen'); return; }
       if (from > to) { showToast('Von muss vor Bis liegen'); return; }
       loadStats(from, to);
@@ -1225,63 +2075,50 @@
 
     async function loadStats(fromDate, toDate) {
       const content = document.getElementById('stats-content');
-      content.innerHTML = '<p class="text-zinc-500 text-center py-8">⏳ Lade Daten...</p>';
-
+      content.innerHTML = '<p style="color:var(--fg-mute); text-align:center; padding:40px 0;">⏳ Lade Daten…</p>';
       try {
         const { data: logsData } = await supabaseClient
           .from('water_logs').select('*')
           .gte('date', fromDate).lte('date', toDate)
           .order('date', { ascending: true });
-
         const { data: dailyGoals } = await supabaseClient
           .from('water_daily').select('*')
           .gte('date', fromDate).lte('date', toDate);
-
         const goalMap = {};
         (dailyGoals || []).forEach(d => goalMap[d.date] = d.goal);
-
-        // Build day-by-day using string iteration to avoid timezone issues
         const days = {};
-        const cur = new Date(fromDate + 'T12:00:00'); // noon to avoid DST issues
-        const end = new Date(toDate   + 'T12:00:00');
+        const cur = new Date(fromDate + 'T12:00:00');
+        const end = new Date(toDate + 'T12:00:00');
         while (cur <= end) {
           const key = cur.toLocaleDateString('sv-SE');
           days[key] = { date: key, total: 0, goal: goalMap[key] || settings.goal, logs: [] };
           cur.setDate(cur.getDate() + 1);
         }
-
         (logsData || []).forEach(l => {
           if (days[l.date]) {
             days[l.date].total += parseInt(l.amount);
             days[l.date].logs.push(l);
           }
         });
-
         const dayArr = Object.values(days);
         renderStats(dayArr, logsData || []);
       } catch(e) {
-        content.innerHTML = '<p class="text-red-400 text-center py-8">Fehler beim Laden</p>';
+        content.innerHTML = '<p style="color:#fca5a5; text-align:center; padding:40px 0;">Fehler beim Laden</p>';
         console.error(e);
       }
     }
 
     function renderStats(dayArr, allLogs) {
       const content = document.getElementById('stats-content');
-
-      // ── Kennzahlen ──
-      const daysWithData  = dayArr.filter(d => d.total > 0);
-      const daysGoalMet   = dayArr.filter(d => d.total >= d.goal);
-      const avgMl         = daysWithData.length ? Math.round(daysWithData.reduce((s,d) => s+d.total,0) / daysWithData.length) : 0;
-      const successRate   = dayArr.length ? Math.round((daysGoalMet.length / dayArr.length) * 100) : 0;
-
-      // Best streak in period (also consider current overall winstreak)
+      const daysWithData = dayArr.filter(d => d.total > 0);
+      const daysGoalMet = dayArr.filter(d => d.total >= d.goal);
+      const avgMl = daysWithData.length ? Math.round(daysWithData.reduce((s,d) => s+d.total,0) / daysWithData.length) : 0;
+      const successRate = dayArr.length ? Math.round((daysGoalMet.length / dayArr.length) * 100) : 0;
       let bestStreak = settings.winstreak, curStreak = 0;
       dayArr.forEach(d => {
         if (d.total >= d.goal) { curStreak++; bestStreak = Math.max(bestStreak, curStreak); }
         else curStreak = 0;
       });
-
-      // Drink breakdown (other category, group by base name)
       const drinkCounts = {};
       let statsMilchMl = 0;
       allLogs.filter(l => l.category === 'other').forEach(l => {
@@ -1291,86 +2128,45 @@
         const key = ['Espresso','Double Espresso','Schwarz','Barista','Gran Lungo','TGW','Mug'].includes(base) ? 'Kaffee' : base;
         drinkCounts[key] = (drinkCounts[key] || 0) + 1;
       });
-
-      // Bottles total (from settings – all time)
-      const bottlesTotal = settings.bottlesToday || 0;
-
-      // Most frequent drink
       const topDrink = Object.entries(drinkCounts).sort((a,b) => b[1]-a[1])[0];
 
-      // ── Chart data ──
       const chartLabels = dayArr.map(d => {
         const dt = new Date(d.date + 'T00:00:00');
         return dt.toLocaleDateString('de-AT', { day: '2-digit', month: '2-digit' });
       });
-      const chartActual  = dayArr.map(d => d.total);
-      const chartGoal    = dayArr.map(d => d.goal);
-      const chartColors  = dayArr.map(d => d.total >= d.goal ? '#22c55e' : '#f97316');
-
+      const chartActual = dayArr.map(d => d.total);
+      const chartGoal = dayArr.map(d => d.goal);
+      const chartColors = dayArr.map(d => d.total >= d.goal ? 'rgba(34,197,94,0.85)' : 'rgba(255,138,31,0.85)');
 
       content.innerHTML = `
-        <!-- Chart -->
-        <div>
-          <p class="text-zinc-400 text-xs uppercase tracking-widest mb-3">Verlauf</p>
-          <div style="position:relative;height:180px;">
-            <canvas id="stats-chart"></canvas>
+        <div style="margin-bottom:20px">
+          <div style="font-size:11px;color:var(--fg-mute);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;font-weight:600">Verlauf</div>
+          <div style="position:relative;height:180px"><canvas id="stats-chart"></canvas></div>
+        </div>
+        <div style="margin-bottom:20px">
+          <div style="font-size:11px;color:var(--fg-mute);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;font-weight:600">Kennzahlen</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div class="stat-card"><div class="lbl">Bester Streak</div><div class="val">🔥 ${bestStreak} <span class="sm">Tage</span></div></div>
+            <div class="stat-card"><div class="lbl">Ziel erreicht</div><div class="val">${successRate}<span class="sm">%</span></div></div>
+            <div class="stat-card"><div class="lbl">Ziel-Tage</div><div class="val" style="color:#86efac">${daysGoalMet.length} <span class="sm">Tage</span></div></div>
+            <div class="stat-card"><div class="lbl">Tage mit Daten</div><div class="val">${daysWithData.length} <span class="sm">Tage</span></div></div>
+            <div class="stat-card"><div class="lbl">Ø pro Tag</div><div class="val">${avgMl} <span class="sm">ml</span></div></div>
+            <div class="stat-card"><div class="lbl">Lieblingsgetränk</div><div class="val" style="font-size:16px">${topDrink ? (DRINK_EMOJIS[topDrink[0]] || '🥤') + ' ' + topDrink[0] : '–'}</div></div>
           </div>
         </div>
-
-        <!-- Kennzahlen -->
-        <div>
-          <p class="text-zinc-400 text-xs uppercase tracking-widest mb-3">Kennzahlen</p>
-          <div class="grid grid-cols-2 gap-3">
-            <div class="bg-zinc-800 rounded-2xl p-4">
-              <p class="text-zinc-400 text-xs mb-1">Bester Streak</p>
-              <p class="text-2xl font-bold">🔥 ${bestStreak} <span class="text-sm text-zinc-500">Tage</span></p>
-            </div>
-            <div class="bg-zinc-800 rounded-2xl p-4">
-              <p class="text-zinc-400 text-xs mb-1">Ziel erreicht</p>
-              <p class="text-2xl font-bold">${successRate}<span class="text-sm text-zinc-500">%</span></p>
-            </div>
-            <div class="bg-zinc-800 rounded-2xl p-4">
-              <p class="text-zinc-400 text-xs mb-1">Ziel-Tage</p>
-              <p class="text-2xl font-bold text-green-400">${daysGoalMet.length} <span class="text-sm text-zinc-500">Tage</span></p>
-            </div>
-            <div class="bg-zinc-800 rounded-2xl p-4">
-              <p class="text-zinc-400 text-xs mb-1">Tage mit Daten</p>
-              <p class="text-2xl font-bold">${daysWithData.length} <span class="text-sm text-zinc-500">Tage</span></p>
-            </div>
-            <div class="bg-zinc-800 rounded-2xl p-4">
-              <p class="text-zinc-400 text-xs mb-1">Ø pro Tag</p>
-              <p class="text-2xl font-bold">${avgMl} <span class="text-sm text-zinc-500">ml</span></p>
-            </div>
-            <div class="bg-zinc-800 rounded-2xl p-4">
-              <p class="text-zinc-400 text-xs mb-1">Lieblingsgetränk</p>
-              <p class="text-lg font-bold">${topDrink ? (DRINK_EMOJIS[topDrink[0]] || '🥤') + ' ' + topDrink[0] : '–'}</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Getränke Breakdown -->
-        <div>
-          <p class="text-zinc-400 text-xs uppercase tracking-widest mb-3">Andere Getränke</p>
-          <div class="bg-zinc-800 rounded-2xl p-4 space-y-2">
+        <div style="margin-bottom:20px">
+          <div style="font-size:11px;color:var(--fg-mute);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;font-weight:600">Andere Getränke</div>
+          <div class="stat-card" style="padding:14px 16px">
             ${Object.keys(drinkCounts).length === 0 && statsMilchMl === 0
-              ? '<p class="text-zinc-500 text-sm italic">Keine Einträge</p>'
+              ? '<div class="breakdown-empty">Keine Einträge</div>'
               : Object.entries(drinkCounts).sort((a,b) => b[1]-a[1]).map(([name, count]) =>
-                `<div class="flex justify-between items-center">
-                  <span class="text-sm">${DRINK_EMOJIS[name] || '🥤'} ${name}</span>
-                  <span class="font-bold text-orange-400">${count}×</span>
-                </div>`
-              ).join('') + (statsMilchMl > 0 ? `
-                <div class="flex justify-between items-center border-t border-zinc-700 pt-2 mt-2">
-                  <span class="text-sm">🥛 Milch gesamt</span>
-                  <span class="font-bold text-orange-400">${statsMilchMl} ml</span>
-                </div>` : '')
+                `<div class="breakdown-row"><span class="name">${DRINK_EMOJIS[name] || '🥤'} ${name}</span><span class="count">${count}×</span></div>`
+              ).join('') + (statsMilchMl > 0 ? `<div class="breakdown-divider"><div class="breakdown-row"><span class="name">🥛 Milch gesamt</span><span class="count">${statsMilchMl} ml</span></div></div>` : '')
             }
           </div>
         </div>
-
       `;
 
-      // Render chart
       if (statsChartInstance) statsChartInstance.destroy();
       const ctx = document.getElementById('stats-chart');
       statsChartInstance = new Chart(ctx, {
@@ -1378,54 +2174,97 @@
         data: {
           labels: chartLabels,
           datasets: [
-            {
-              label: 'Getrunken',
-              data: chartActual,
-              backgroundColor: chartColors,
-              borderRadius: 6,
-            },
-            {
-              label: 'Ziel',
-              data: chartGoal,
-              type: 'line',
-              borderColor: '#f97316',
-              borderDash: [4,3],
-              borderWidth: 2,
-              pointRadius: 0,
-              fill: false,
-            }
+            { label: 'Getrunken', data: chartActual, backgroundColor: chartColors, borderRadius: 6, borderSkipped: false },
+            { label: 'Ziel', data: chartGoal, type: 'line',
+              borderColor: 'rgba(255,255,255,0.4)', borderDash: [4,3], borderWidth: 1.5, pointRadius: 0, fill: false }
           ]
         },
         options: {
           responsive: true, maintainAspectRatio: false,
           plugins: { legend: { display: false } },
           scales: {
-            y: { beginAtZero: true, grid: { color: '#27272a' }, ticks: { color: '#71717a' } },
-            x: { grid: { display: false }, ticks: { color: '#71717a', maxTicksLimit: 10, maxRotation: 45 } }
+            y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'rgba(255,255,255,0.4)', font: { size: 11 } } },
+            x: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.4)', maxTicksLimit: 10, maxRotation: 45, font: { size: 10 } } }
           }
         }
       });
     }
 
-    // ─── Init ─────────────────────────────────────────────────────────────────────
+    // ─── Tweaks (Edit Mode) ────────────────────────────────────────────────────
+    function setProgressStyle(s) {
+      tweaks.progressStyle = s;
+      document.getElementById('ring-wrap').classList.toggle('hidden', s !== 'ring');
+      document.getElementById('bar-outer').classList.toggle('hidden', s !== 'bar');
+      document.querySelectorAll('#progress-style-seg .seg-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.style === s);
+      });
+      window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { progressStyle: s } }, '*');
+    }
+    function setAurora(on) {
+      tweaks.aurora = on;
+      document.querySelector('.aurora').style.display = on ? '' : 'none';
+      document.querySelector('.aurora-grain').style.display = on ? '' : 'none';
+      document.querySelectorAll('#aurora-seg .seg-btn').forEach(b => {
+        b.classList.toggle('active', (b.dataset.aurora === 'on') === on);
+      });
+      window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { aurora: on } }, '*');
+    }
+    function closeTweaks() {
+      document.getElementById('tweak-panel').classList.remove('open');
+      window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*');
+    }
+    window.addEventListener('message', (ev) => {
+      const d = ev.data;
+      if (!d || typeof d !== 'object') return;
+      if (d.type === '__activate_edit_mode') {
+        document.getElementById('tweak-panel').classList.add('open');
+      } else if (d.type === '__deactivate_edit_mode') {
+        document.getElementById('tweak-panel').classList.remove('open');
+      }
+    });
+
+    // Apply initial tweaks
+    function applyInitialTweaks() {
+      setProgressStyle(tweaks.progressStyle);
+      // setProgressStyle already toggles; setAurora too — but we don't want to post messages on init
+      // So apply aurora silently:
+      document.querySelector('.aurora').style.display = tweaks.aurora ? '' : 'none';
+      document.querySelector('.aurora-grain').style.display = tweaks.aurora ? '' : 'none';
+    }
+
+    // ─── Init ──────────────────────────────────────────────────────────────────
+    // Register Service Worker for PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW reg failed:', err));
+      });
+    }
+
     window.onload = async () => {
       loadFromLocal();
-
-      // Always use hardcoded keys
-      settings.supabaseUrl   = SUPABASE_URL;
-      settings.supabaseKey   = SUPABASE_KEY;
+      settings.supabaseUrl = SUPABASE_URL;
+      settings.supabaseKey = SUPABASE_KEY;
       settings.pushoverToken = PUSHOVER_TOKEN;
-      settings.pushoverUser  = PUSHOVER_USER;
+      settings.pushoverUser = PUSHOVER_USER;
       initSupabase();
 
+      applyInitialTweaks();
+
       const loaded = await loadFromSupabase();
-      if (loaded) {
-        saveToLocal();
-        showToast('☁️ Daten aus Supabase geladen');
-      }
+      if (loaded) { saveToLocal(); showToast('☁️ Daten aus Supabase geladen'); }
 
       updateUI();
-      setInterval(checkReminder, 120_000); // banner only, pushover via edge function
+      setInterval(checkReminder, 120_000);
+
+      // Announce tweaks available
+      window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+
+      // Register service worker (PWA)
+      if ('serviceWorker' in navigator) {
+        try {
+          await navigator.serviceWorker.register('./service-worker.js');
+        } catch(e) { console.warn('SW register failed', e); }
+      }
     };
   </script>
 </body>
