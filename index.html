@@ -1294,7 +1294,7 @@
         </button>
       </div>
       <button class="cta" style="margin-bottom:0" onclick="saveSettings()">Speichern</button>
-      <div style="margin-top:18px;text-align:center;font-size:12px;color:var(--fg-mute);letter-spacing:0.04em;">Version 2.8</div>
+      <div style="margin-top:18px;text-align:center;font-size:12px;color:var(--fg-mute);letter-spacing:0.04em;">Version 2.9</div>
     </div>
   </div>
 
@@ -1369,6 +1369,19 @@
       <div class="confirm-grid">
         <button class="btn-lg" onclick="confirmBottle(false)">❌ Nein</button>
         <button class="btn-lg primary" onclick="confirmBottle(true)">✅ Ja, leer!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Delete Confirm modal ─── -->
+  <div id="delete-modal" class="sheet-backdrop center">
+    <div class="sheet center-sheet" style="text-align:center;">
+      <div style="font-size:48px;line-height:1;margin-bottom:12px">🗑️</div>
+      <div class="success-title">Eintrag löschen?</div>
+      <div id="delete-modal-label" class="success-sub"></div>
+      <div class="confirm-grid" style="margin-top:20px">
+        <button class="btn-lg" onclick="confirmDeleteEntry(false)">✕ Abbrechen</button>
+        <button class="btn-lg" style="background:rgba(252,165,165,0.12);border-color:rgba(252,165,165,0.3);color:#fca5a5;" onclick="confirmDeleteEntry(true)">🗑 Löschen</button>
       </div>
     </div>
   </div>
@@ -2149,7 +2162,7 @@
         return;
       }
       closeCustomModal();
-      quickAdd(amount, name, 'custom');
+      askConfirm(amount, name, 'custom');
     }
     document.addEventListener('DOMContentLoaded', () => {
       ['custom-ml-input', 'custom-name-input'].forEach(id => {
@@ -2160,11 +2173,23 @@
       });
     });
 
-    async function deleteEntry(index) {
+    let _pendingDeleteIdx = null;
+    function deleteEntry(index) {
+      const sorted = [...logs].sort((a,b) => b.ts - a.ts);
+      const entry = sorted[index];
+      const label = entry.name ? `${entry.amount} ml · ${entry.name}` : `${entry.amount} ml`;
+      _pendingDeleteIdx = index;
+      document.getElementById('delete-modal-label').textContent = label;
+      document.getElementById('delete-modal').classList.add('open');
+    }
+    async function confirmDeleteEntry(ok) {
+      document.getElementById('delete-modal').classList.remove('open');
+      if (!ok || _pendingDeleteIdx === null) { _pendingDeleteIdx = null; return; }
+      const index = _pendingDeleteIdx;
+      _pendingDeleteIdx = null;
       const sorted = [...logs].sort((a,b) => b.ts - a.ts);
       const entry = sorted[index];
       const realIdx = logs.indexOf(entry);
-      if (!confirm("Eintrag wirklich löschen?")) return;
       if (entry.id) await deleteLogFromSupabase(entry.id);
       logs.splice(realIdx, 1);
       saveToLocal();

@@ -1,6 +1,6 @@
 // Wasser Tracker — Service Worker
 // Simple app-shell + runtime cache for offline usage on iOS/Android.
-const CACHE = 'wasser-tracker-v8';
+const CACHE = 'wasser-tracker-v9';
 const CORE = [
   './',
   './index.html',
