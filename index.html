@@ -194,6 +194,7 @@
     #ptr-indicator {
       height: 56px;
       margin-top: -56px;
+      opacity: 0;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -201,7 +202,7 @@
       color: var(--fg-dim);
       font-size: 13px;
       font-weight: 500;
-      will-change: margin-top;
+      will-change: margin-top, opacity;
       user-select: none;
     }
     .ptr-arrow {
@@ -1257,7 +1258,7 @@
         </button>
       </div>
       <button class="cta" style="margin-bottom:0" onclick="saveSettings()">Speichern</button>
-      <div style="margin-top:18px;text-align:center;font-size:12px;color:var(--fg-mute);letter-spacing:0.04em;">Version 2.2</div>
+      <div style="margin-top:18px;text-align:center;font-size:12px;color:var(--fg-mute);letter-spacing:0.04em;">Version 2.3</div>
     </div>
   </div>
 
@@ -2060,8 +2061,10 @@
         timeToSelects(settings.startTime, 'start-hour', 'start-min');
         timeToSelects(settings.endTime, 'end-hour', 'end-min');
         modal.classList.add('open');
+        document.body.style.overflow = 'hidden';
       } else {
         modal.classList.remove('open');
+        document.body.style.overflow = '';
       }
     }
     async function saveSettings() {
@@ -2088,10 +2091,12 @@
 
     function openStats() {
       document.getElementById('stats-modal').classList.add('open');
+      document.body.style.overflow = 'hidden';
       setStatsPeriod(7);
     }
     function closeStats() {
       document.getElementById('stats-modal').classList.remove('open');
+      document.body.style.overflow = '';
     }
     function todayStr() { return new Date().toLocaleDateString('sv-SE'); }
     function offsetDateStr(days) {
@@ -2310,15 +2315,18 @@
         if (delta <= 0) { active = false; return; }
         e.preventDefault();
         currentDelta = delta;
-        setMargin(delta * 0.6);
+        const pull = delta * 0.6;
+        setMargin(pull);
+        indicator.style.opacity = Math.min(pull / 56, 1).toString();
         const ready = delta >= THRESHOLD;
         indicator.classList.toggle('ptr-ready', ready);
         label.textContent = ready ? 'Loslassen zum Aktualisieren' : 'Zum Aktualisieren ziehen';
       }, { passive: false });
 
       async function springBack() {
-        indicator.style.transition = 'margin-top 0.35s var(--ease)';
+        indicator.style.transition = 'margin-top 0.35s var(--ease), opacity 0.35s var(--ease)';
         indicator.style.marginTop = '-56px';
+        indicator.style.opacity = '0';
         await new Promise(r => setTimeout(r, 370));
         indicator.style.transition = '';
         indicator.classList.remove('ptr-ready', 'ptr-loading');
@@ -2335,6 +2343,7 @@
         indicator.classList.add('ptr-loading');
         indicator.classList.remove('ptr-ready');
         label.textContent = 'Wird aktualisiert…';
+        indicator.style.opacity = '1';
         indicator.style.transition = 'margin-top 0.2s var(--ease)';
         indicator.style.marginTop = '0px';
 
