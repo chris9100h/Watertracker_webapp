@@ -190,6 +190,40 @@
       50% { opacity: 1; transform: scale(1.1); }
     }
 
+    /* ─── Pull to Refresh ────────────────────────────────── */
+    #ptr-indicator {
+      height: 56px;
+      margin-top: -56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: var(--fg-dim);
+      font-size: 13px;
+      font-weight: 500;
+      will-change: margin-top;
+      user-select: none;
+    }
+    .ptr-arrow {
+      width: 20px; height: 20px;
+      color: var(--accent);
+      transition: transform 0.25s var(--ease);
+      flex-shrink: 0;
+    }
+    .ptr-spinner {
+      width: 20px; height: 20px;
+      border: 2px solid rgba(255,138,31,0.25);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: ptr-spin 0.65s linear infinite;
+      flex-shrink: 0;
+      display: none;
+    }
+    #ptr-indicator.ptr-ready .ptr-arrow { transform: rotate(180deg); }
+    #ptr-indicator.ptr-loading .ptr-arrow { display: none; }
+    #ptr-indicator.ptr-loading .ptr-spinner { display: block; }
+    @keyframes ptr-spin { to { transform: rotate(360deg); } }
+
     /* ─── Hero ──────────────────────────────────────────── */
     .hero {
       padding: 26px 22px 24px;
@@ -948,6 +982,16 @@
   </svg>
 
   <div class="shell">
+
+    <!-- ─── Pull to Refresh ─── -->
+    <div id="ptr-indicator" aria-hidden="true">
+      <svg class="ptr-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"/>
+        <polyline points="19 12 12 19 5 12"/>
+      </svg>
+      <div class="ptr-spinner"></div>
+      <span id="ptr-label">Zum Aktualisieren ziehen</span>
+    </div>
 
     <!-- ─── Topbar ─── -->
     <div class="topbar">
@@ -2240,6 +2284,68 @@
       });
     }
 
+    // ─── Pull to Refresh ───────────────────────────────────────────────────────
+    function initPullToRefresh() {
+      const THRESHOLD = 72;
+      const MAX_DRAG  = 96;
+      const indicator = document.getElementById('ptr-indicator');
+      const label     = document.getElementById('ptr-label');
+      let startY = 0, currentDelta = 0, active = false, refreshing = false;
+
+      function setMargin(px) {
+        indicator.style.marginTop = `${-56 + Math.max(0, Math.min(px, MAX_DRAG))}px`;
+      }
+
+      document.addEventListener('touchstart', e => {
+        if (refreshing || window.scrollY > 0) return;
+        startY = e.touches[0].clientY;
+        active = true;
+        currentDelta = 0;
+      }, { passive: true });
+
+      document.addEventListener('touchmove', e => {
+        if (!active || refreshing) return;
+        const delta = e.touches[0].clientY - startY;
+        if (delta <= 0) { active = false; return; }
+        e.preventDefault();
+        currentDelta = delta;
+        setMargin(delta * 0.6);
+        const ready = delta >= THRESHOLD;
+        indicator.classList.toggle('ptr-ready', ready);
+        label.textContent = ready ? 'Loslassen zum Aktualisieren' : 'Zum Aktualisieren ziehen';
+      }, { passive: false });
+
+      async function springBack() {
+        indicator.style.transition = 'margin-top 0.35s var(--ease)';
+        indicator.style.marginTop = '-56px';
+        await new Promise(r => setTimeout(r, 370));
+        indicator.style.transition = '';
+        indicator.classList.remove('ptr-ready', 'ptr-loading');
+        label.textContent = 'Zum Aktualisieren ziehen';
+      }
+
+      document.addEventListener('touchend', async () => {
+        if (!active || refreshing) return;
+        active = false;
+
+        if (currentDelta < THRESHOLD) { await springBack(); return; }
+
+        refreshing = true;
+        indicator.classList.add('ptr-loading');
+        indicator.classList.remove('ptr-ready');
+        label.textContent = 'Wird aktualisiert…';
+        indicator.style.transition = 'margin-top 0.2s var(--ease)';
+        indicator.style.marginTop = '0px';
+
+        const loaded = await loadFromSupabase();
+        if (loaded) { saveToLocal(); showToast('✅ Aktualisiert'); }
+        updateUI();
+
+        await springBack();
+        refreshing = false;
+      }, { passive: true });
+    }
+
     window.onload = async () => {
       loadFromLocal();
       settings.supabaseUrl = SUPABASE_URL;
@@ -2254,6 +2360,7 @@
       if (loaded) { saveToLocal(); showToast('☁️ Daten aus Supabase geladen'); }
 
       updateUI();
+      initPullToRefresh();
       setInterval(checkReminder, 120_000);
 
       // Announce tweaks available
