@@ -101,6 +101,10 @@
       0%,100% { transform: translate(0,0) scale(1); }
       50% { transform: translate(-12vw, -10vh) scale(1.2); }
     }
+    /* Disable expensive blur animation on non-mobile viewports */
+    @media (min-width: 600px) {
+      .aurora::before, .aurora::after { animation: none; }
+    }
 
     /* ─── Layout ─────────────────────────────────────────── */
     .shell {
@@ -1258,7 +1262,7 @@
         </button>
       </div>
       <button class="cta" style="margin-bottom:0" onclick="saveSettings()">Speichern</button>
-      <div style="margin-top:18px;text-align:center;font-size:12px;color:var(--fg-mute);letter-spacing:0.04em;">Version 2.3</div>
+      <div style="margin-top:18px;text-align:center;font-size:12px;color:var(--fg-mute);letter-spacing:0.04em;">Version 2.4</div>
     </div>
   </div>
 
@@ -1766,17 +1770,15 @@
 
     function renderLogList() {
       const container = document.getElementById('log-list');
-      container.innerHTML = '';
       if (logs.length === 0) {
         container.innerHTML = `<div class="log-empty">Noch keine Einträge heute</div>`;
         document.getElementById('total-entries').textContent = '0';
         return;
       }
-      [...logs].sort((a,b) => b.ts - a.ts).forEach((entry, index) => {
+      const sorted = [...logs].sort((a,b) => b.ts - a.ts);
+      container.innerHTML = sorted.map((entry, index) => {
         const time = new Date(entry.ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-        const div = document.createElement('div');
-        div.className = 'log-item';
-        div.innerHTML = `
+        return `<div class="log-item">
           <div>
             <span class="time">${time}</span>
             <span class="amount">+${entry.amount} ml</span>
@@ -1784,13 +1786,31 @@
           </div>
           <button class="log-del" onclick="deleteEntry(${index})" aria-label="Löschen">
             <svg class="ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
-          </button>`;
-        container.appendChild(div);
-      });
+          </button>
+        </div>`;
+      }).join('');
       document.getElementById('total-entries').textContent = logs.length;
     }
 
     let chartInstance = null;
+    let _chartNowFraction = 0;
+    const _nowLinePlugin = {
+      id: 'nowLine',
+      afterDraw(chart) {
+        const { ctx, chartArea: { top, bottom, left, right } } = chart;
+        const x = left + _chartNowFraction * (right - left);
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(x, top);
+        ctx.lineTo(x, bottom);
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 4]);
+        ctx.stroke();
+        ctx.restore();
+      }
+    };
+
     function renderChart() {
       const ctx = document.getElementById('waterChart');
       const startHour = parseInt(settings.startTime.split(':')[0]);
@@ -1804,32 +1824,34 @@
         labels.push(`${String(endHour).padStart(2,'0')}:00`);
 
       const expectedData = labels.map((_, i) => Math.round(settings.goal * (i / (labels.length - 1))));
+
+      // O(n+m) running sum instead of O(n*m) filter-per-label
+      const sortedLogs = [...logs].sort((a, b) => a.ts - b.ts);
+      let logIdx = 0, runningSum = 0;
       const drunkData = labels.map(label => {
         const hour = parseInt(label.split(':')[0]);
         const cutoff = new Date(); cutoff.setHours(hour, 59, 59, 999);
-        return logs.filter(l => l.ts <= cutoff.getTime()).reduce((sum, l) => sum + l.amount, 0);
+        const cutoffTs = cutoff.getTime();
+        while (logIdx < sortedLogs.length && sortedLogs[logIdx].ts <= cutoffTs)
+          runningSum += sortedLogs[logIdx++].amount;
+        return runningSum;
       });
 
       const now = new Date();
       const nowDecimal = now.getHours() + now.getMinutes()/60;
-      const nowFraction = Math.max(0, Math.min(1, (nowDecimal - startHour) / (endHour - startHour)));
+      _chartNowFraction = Math.max(0, Math.min(1, (nowDecimal - startHour) / (endHour - startHour)));
 
-      const nowLinePlugin = {
-        id: 'nowLine',
-        afterDraw(chart) {
-          const { ctx, chartArea: { top, bottom, left, right } } = chart;
-          const x = left + nowFraction * (right - left);
-          ctx.save();
-          ctx.beginPath();
-          ctx.moveTo(x, top);
-          ctx.lineTo(x, bottom);
-          ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-          ctx.lineWidth = 1.5;
-          ctx.setLineDash([3, 4]);
-          ctx.stroke();
-          ctx.restore();
-        }
-      };
+      const yMax = Math.ceil(settings.goal * 1.2 / 500) * 500;
+      const labelsKey = `${startHour}-${endHour}-${step}`;
+
+      // Incremental update: only rebuild chart when time range changes
+      if (chartInstance && chartInstance._labelsKey === labelsKey) {
+        chartInstance.data.datasets[0].data = expectedData;
+        chartInstance.data.datasets[1].data = drunkData;
+        chartInstance.options.scales.y.max = yMax;
+        chartInstance.update('none');
+        return;
+      }
 
       if (chartInstance) chartInstance.destroy();
       chartInstance = new Chart(ctx, {
@@ -1849,7 +1871,7 @@
             }
           },
           scales: {
-            y: { beginAtZero: true, max: Math.ceil(settings.goal * 1.2 / 500)*500,
+            y: { beginAtZero: true, max: yMax,
               grid: { color: 'rgba(255,255,255,0.05)' },
               ticks: { color: 'rgba(255,255,255,0.4)', font: { size: 11 } }
             },
@@ -1859,8 +1881,9 @@
             }
           }
         },
-        plugins: [nowLinePlugin]
+        plugins: [_nowLinePlugin]
       });
+      chartInstance._labelsKey = labelsKey;
     }
 
     // ─── Winstreak ──────────────────────────────────────────────────────────────
