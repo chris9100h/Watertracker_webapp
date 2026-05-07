@@ -1697,8 +1697,21 @@
 
     async function checkAuth() {
       if (!supabaseClient) return false;
-      const { data: { session } } = await supabaseClient.auth.getSession();
-      return !!session;
+      // Wait for INITIAL_SESSION – the reliable way to detect persisted sessions in Supabase v2
+      return new Promise((resolve) => {
+        let done = false;
+        const finish = (val) => {
+          if (done) return;
+          done = true;
+          sub.unsubscribe();
+          resolve(val);
+        };
+        const { data: { subscription: sub } } = supabaseClient.auth.onAuthStateChange((event, session) => {
+          if (event === 'INITIAL_SESSION') finish(!!session);
+        });
+        // Fallback: falls INITIAL_SESSION nie feuert
+        setTimeout(() => finish(false), 5000);
+      });
     }
 
     async function signIn() {
