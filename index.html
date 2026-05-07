@@ -2761,6 +2761,8 @@
         return;
       }
 
+      showLoginScreen(false);
+
       const loaded = await loadFromSupabase();
       if (loaded) { saveToLocal(); showToast('☁️ Daten aus Supabase geladen'); }
 
